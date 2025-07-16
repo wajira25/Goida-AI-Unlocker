@@ -619,8 +619,8 @@ Copy-Item -Path $source -Destination $dest -Force
                 show_message_and_return(success_msg, success=True, animate=True)
             else:
                 error_msg = (
-                    "Не удалось обновить файл hosts.\nЗапустите программу от имени администратора." if is_install else
-                    "Не удалось восстановить файл hosts.\nЗапустите программу от имени администратора."
+                    "Не удалось обновить файл hosts.\nЗапустите программу от имени Администратора." if is_install else
+                    "Не удалось восстановить файл hosts.\nЗапустите программу от имени Администратора."
                 )
                 show_message_and_return(error_msg, success=False, animate=True)
 
