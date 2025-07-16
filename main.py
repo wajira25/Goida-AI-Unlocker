@@ -3,6 +3,7 @@ import tempfile
 import urllib.request
 import subprocess
 import os
+import threading  # Added for running blocking tasks in background
 try:
     from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget
     from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect
@@ -56,10 +57,11 @@ Copy-Item -Path $source -Destination $dest -Force
         # Запускаем PowerShell с правами администратора и ждем завершения
         command = [
             "powershell",
+            "-WindowStyle", "Hidden",
             "-Command",
-            f'Start-Process powershell -Verb runAs -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait'
+            f'Start-Process powershell -Verb runAs -WindowStyle Hidden -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait'
         ]
-        subprocess.run(command, check=True)
+        subprocess.run(command, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
         # Очищаем временные файлы
         try:
@@ -174,7 +176,7 @@ def get_stylesheet(dark):
                 }
             """,
             "about_title_style": "font-size:16px; margin-bottom:4px;",
-            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#bfc9db;'>(v1.0.0)</span>",
+            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#bfc9db;'>(v1.0.1)</span>",
             "about_info_html": "<span style='font-size:11px; color:#888;'>Автор: AvenCores</span>",
             "about_link_html": "<a href='#' style='color:#2d7dff; text-decoration:none; font-size:13px;'>⟵ В меню</a>",
         }
@@ -448,8 +450,8 @@ Copy-Item -Path $source -Destination $dest -Force
                 ps_file.write(ps_content)
                 ps_script_path = ps_file.name
 
-            command = ["powershell", "-Command", f'Start-Process powershell -Verb runAs -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait']
-            subprocess.run(command, check=True)
+            command = ["powershell", "-WindowStyle", "Hidden", "-Command", f'Start-Process powershell -Verb runAs -WindowStyle Hidden -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait']
+            subprocess.run(command, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
             try:
                 os.remove(temp_path)
@@ -533,7 +535,7 @@ Copy-Item -Path $source -Destination $dest -Force
                 elif obj_name == "message_emoji": continue
                 else: child.setStyleSheet(main_window.styles["label"])
 
-    def show_message_and_return(msg, success=True):
+    def show_message_and_return(msg, success=True, animate=True):
         message_widget = QWidget()
         vbox = QVBoxLayout(message_widget)
         vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -557,7 +559,12 @@ Copy-Item -Path $source -Destination $dest -Force
         if main_window.stacked_widget:
             main_window.stacked_widget.addWidget(message_widget)
         update_subwindow_styles()
-        animate_widget_switch(message_widget)
+
+        # Переключение либо с анимацией, либо мгновенно
+        if animate and main_window.stacked_widget:
+            animate_widget_switch(message_widget)
+        elif main_window.stacked_widget:
+            main_window.stacked_widget.setCurrentWidget(message_widget)
 
         def return_to_main():
             def do_remove_message_widget():
@@ -566,29 +573,80 @@ Copy-Item -Path $source -Destination $dest -Force
             animate_widget_switch(central_widget, on_finish=do_remove_message_widget)
         ok_btn.clicked.connect(return_to_main)
 
+    # --- Новая функция: промежуточное окно установки/удаления ---
+    def start_installation(is_install=True):
+        """Показывает окно ожидания и выполняет установку/удаление в фоне."""
+        # Создаём виджет ожидания
+        processing_widget = QWidget()
+        vbox = QVBoxLayout(processing_widget)
+        vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.setSpacing(24)
+        vbox.setContentsMargins(20, 20, 20, 20)
+        fix_widget_size(processing_widget)
+
+        emoji_label = QLabel("⏳")
+        emoji_label.setObjectName("message_emoji")
+        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        emoji_label.setStyleSheet("font-size: 36px; margin-bottom: 8px;")
+        vbox.addWidget(emoji_label)
+
+        msg_text = "Установка обхода...\nПожалуйста, подождите." if is_install else "Удаление обхода...\nПожалуйста, подождите."
+        label = QLabel(msg_text)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
+
+        # Добавляем на стек и показываем
+        if main_window.stacked_widget:
+            main_window.stacked_widget.addWidget(processing_widget)
+        update_subwindow_styles()
+        animate_widget_switch(processing_widget)
+
+        # Функция для обновления статуса строки состояния
+        def update_status_label():
+            current_status = "Установлен" if check_installation() else "Не установлен"
+            current_color = "#43b581" if current_status == "Установлен" else "#e06c75"
+            textinformer.setText(f"Обход блокировок - <span style='color:{current_color}; font-weight:bold;'>{current_status}</span>")
+
+        # Завершение процесса: скрыть окно ожидания и показать итоговое сообщение
+        def finish(ok_result):
+            # Сначала показываем итоговое сообщение с анимацией
+            if ok_result:
+                success_msg = (
+                    "Файл hosts успешно обновлён!\nВозможно потребуется перезапустить браузер." if is_install else
+                    "Файл hosts успешно восстановлен!\nВозможно потребуется перезапустить браузер."
+                )
+                show_message_and_return(success_msg, success=True, animate=True)
+            else:
+                error_msg = (
+                    "Не удалось обновить файл hosts.\nЗапустите программу от имени администратора." if is_install else
+                    "Не удалось восстановить файл hosts.\nЗапустите программу от имени администратора."
+                )
+                show_message_and_return(error_msg, success=False, animate=True)
+
+            # После завершения анимации (≈400 мс) убираем виджет ожидания
+            def remove_processing():
+                if main_window.stacked_widget and processing_widget in [main_window.stacked_widget.widget(i) for i in range(main_window.stacked_widget.count())]:
+                    main_window.stacked_widget.removeWidget(processing_widget)
+                processing_widget.deleteLater()
+            QTimer.singleShot(400, remove_processing)
+
+            # Обновляем индикатор состояния чуть позже, чтобы окно успело появиться
+            QTimer.singleShot(500, update_status_label)
+
+        # Запускаем блокирующую операцию в отдельном потоке
+        def worker():
+            result = update_hosts_as_admin() if is_install else restore_original_hosts()
+            # Публикуем результат в главный поток через таймер, привязанный к main_window
+            QTimer.singleShot(0, main_window, lambda res=result: finish(res))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def on_install_click():
-        ok = update_hosts_as_admin()
-        if ok:
-            show_message_and_return("Файл hosts успешно обновлён!\nВозможно потребуется перезапустить браузер.", success=True)
-            def update_status():
-                status = "Установлен" if check_installation() else "Не установлен"
-                color = "#43b581" if status == "Установлен" else "#e06c75"
-                textinformer.setText(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
-            QTimer.singleShot(500, update_status)
-        else:
-            show_message_and_return("Не удалось обновить файл hosts.\nЗапустите программу от имени администратора.", success=False)
+        start_installation(True)
 
     def on_uninstall_click():
-        ok = restore_original_hosts()
-        if ok:
-            show_message_and_return("Файл hosts успешно восстановлен!\nВозможно потребуется перезапустить браузер.", success=True)
-            def update_status():
-                status = "Установлен" if check_installation() else "Не установлен"
-                color = "#43b581" if status == "Установлен" else "#e06c75"
-                textinformer.setText(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
-            QTimer.singleShot(500, update_status)
-        else:
-            show_message_and_return("Не удалось восстановить файл hosts.\nЗапустите программу от имени администратора.", success=False)
+        start_installation(False)
 
     button.clicked.connect(on_install_click)
     button2.clicked.connect(on_uninstall_click)
