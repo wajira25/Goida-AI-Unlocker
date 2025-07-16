@@ -399,8 +399,8 @@ if __name__ == "__main__":
         on_main_window_resize(event)
     main_window.resizeEvent = new_resize_event.__get__(main_window, CustomWindow)
 
-    status = "Установлено" if check_installation() else "Не установлено"
-    color = "#43b581" if status == "Установлено" else "#e06c75"
+    status = "Установлен" if check_installation() else "Не установлен"
+    color = "#43b581" if status == "Установлен" else "#e06c75"
     textinformer = QLabel(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
     textinformer.setTextFormat(Qt.TextFormat.RichText)
     textinformer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -571,8 +571,8 @@ Copy-Item -Path $source -Destination $dest -Force
         if ok:
             show_message_and_return("Файл hosts успешно обновлён!\nВозможно потребуется перезапустить браузер.", success=True)
             def update_status():
-                status = "Установлено" if check_installation() else "Не установлено"
-                color = "#43b581" if status == "Установлено" else "#e06c75"
+                status = "Установлен" if check_installation() else "Не установлен"
+                color = "#43b581" if status == "Установлен" else "#e06c75"
                 textinformer.setText(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
             QTimer.singleShot(500, update_status)
         else:
@@ -583,8 +583,8 @@ Copy-Item -Path $source -Destination $dest -Force
         if ok:
             show_message_and_return("Файл hosts успешно восстановлен!\nВозможно потребуется перезапустить браузер.", success=True)
             def update_status():
-                status = "Установлено" if check_installation() else "Не установлено"
-                color = "#43b581" if status == "Установлено" else "#e06c75"
+                status = "Установлен" if check_installation() else "Не установлен"
+                color = "#43b581" if status == "Установлен" else "#e06c75"
                 textinformer.setText(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
             QTimer.singleShot(500, update_status)
         else:
