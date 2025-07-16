@@ -24,7 +24,9 @@
 
 # 🖥 Интерфейс
 
-<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/7e8ea909-966f-44b6-9944-92a061e1a3f1" />
+<div align="center">
+  <img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/7e8ea909-966f-44b6-9944-92a061e1a3f1" />
+</div>
 
 # 🌍 Программа предназначена для разблокировки сервисов 
 ### 📱 **Социальные сети и мессенджеры**
