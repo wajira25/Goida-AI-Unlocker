@@ -1,0 +1,735 @@
+import sys
+import tempfile
+import urllib.request
+import subprocess
+import os
+try:
+    from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget
+    from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect
+    from PySide6.QtGui import QIcon
+except ImportError:
+    print("Ошибка: библиотека PySide6 не установлена. Пожалуйста, установите ее командой: pip install PySide6")
+    sys.exit(1)
+from typing import Optional
+
+def check_installation():
+    # Эта функция будет работать только на Windows
+    if sys.platform != 'win32':
+        return False
+    hosts_path = r"C:\Windows\System32\drivers\etc\hosts"
+    try:
+        with open(hosts_path, 'r', encoding='utf-8-sig') as f:
+            content = f.read()
+        return "# Блокировка реально плохих сайтов" in content
+    except Exception as e:
+        return False
+
+def update_hosts_as_admin():
+    # Эта функция будет работать только на Windows
+    if sys.platform != 'win32':
+        print("Эта функция предназначена только для Windows.")
+        return False
+    url = "https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts"
+    try:
+        # Скачиваем и сохраняем содержимое во временный файл
+        temp_fd, temp_path = tempfile.mkstemp()
+        os.close(temp_fd)
+
+        # Скачиваем контент
+        response = urllib.request.urlopen(url)
+        content = response.read()
+
+        # Записываем во временный файл
+        with open(temp_path, 'wb') as f:
+            f.write(content)
+
+        # Создаём PowerShell-скрипт для копирования
+        ps_content = f'''
+$source = "{temp_path}"
+$dest = "C:\\Windows\\System32\\drivers\\etc\\hosts"
+Copy-Item -Path $source -Destination $dest -Force
+'''
+        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.ps1', encoding='utf-8') as ps_file:
+            ps_file.write(ps_content)
+            ps_script_path = ps_file.name
+
+        # Запускаем PowerShell с правами администратора и ждем завершения
+        command = [
+            "powershell",
+            "-Command",
+            f'Start-Process powershell -Verb runAs -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait'
+        ]
+        subprocess.run(command, check=True)
+
+        # Очищаем временные файлы
+        try:
+            os.remove(temp_path)
+            os.remove(ps_script_path)
+        except:
+            pass
+
+        # Даем время на обновление файла
+        import time
+        time.sleep(1)
+
+        return True
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        return False
+
+def is_windows_dark_theme():
+    # Эта функция будет работать только на Windows
+    if sys.platform != 'win32':
+        return False
+    try:
+        import winreg
+        registry = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
+        key = winreg.OpenKey(registry, r"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
+        value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        return value == 0
+    except Exception:
+        return False
+
+def get_stylesheet(dark):
+    if dark:
+        return {
+            "main": """
+                QMainWindow {
+                    background: #1e2228;
+                    border-radius: 16px;
+                }
+                QWidget {
+                    border-radius: 16px;
+                    background: #1e2228;
+                }
+                QWidget#titleBar {
+                    background: transparent;
+                    border-top-left-radius: 16px;
+                    border-top-right-radius: 16px;
+                    border-bottom-left-radius: 0;
+                    border-bottom-right-radius: 0;
+                    border-bottom: 1px solid #2d333b;
+                }
+            """,
+            "label": """
+                QLabel {
+                    font-size: 18px;
+                    padding: 16px 0 8px 0;
+                    color: #f3f6fd;
+                    font-weight: 500;
+                }
+            """,
+            "button1": """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2d7dff, stop:1 #2962d9);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 12px 0;
+                    font-size: 16px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1857a4, stop:1 #1e4c8f);
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #154b8f, stop:1 #1a4277);
+                    padding: 14px 0 10px 0;
+                }
+            """,
+            "button2": """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e06c75, stop:1 #d64c58);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 12px 0;
+                    font-size: 16px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #b94a59, stop:1 #a43b47);
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #9e3f4c, stop:1 #8f3640);
+                    padding: 14px 0 10px 0;
+                }
+            """,
+            "theme": """
+                QPushButton {
+                    background: #e6e8ec;
+                    color: #222;
+                    border: 1.5px solid #cfd4db;
+                    border-radius: 8px;
+                    padding: 10px 0;
+                    font-size: 15px;
+                    font-weight: 500;
+                }
+                QPushButton:hover {
+                    background: #f3f4f7;
+                }
+                QPushButton:pressed {
+                    background: #d1d5db;
+                    padding: 12px 0 8px 0;
+                }
+            """,
+            "about_title_style": "font-size:16px; margin-bottom:4px;",
+            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#bfc9db;'>(v1.0.0)</span>",
+            "about_info_html": "<span style='font-size:11px; color:#888;'>Автор: AvenCores</span>",
+            "about_link_html": "<a href='#' style='color:#2d7dff; text-decoration:none; font-size:13px;'>⟵ В меню</a>",
+        }
+    else:
+        return {
+            "main": """
+                QMainWindow {
+                    background: #ffffff;
+                    border-radius: 16px;
+                }
+                QWidget {
+                    border-radius: 16px;
+                    background: #ffffff;
+                }
+                QWidget#titleBar {
+                    background: transparent;
+                    border-top-left-radius: 16px;
+                    border-top-right-radius: 16px;
+                    border-bottom-left-radius: 0;
+                    border-bottom-right-radius: 0;
+                    border-bottom: 1px solid #e1e4e8;
+                }
+            """,
+            "label": """
+                QLabel {
+                    font-size: 18px;
+                    padding: 16px 0 8px 0;
+                    color: #1a1a1a;
+                    font-weight: 500;
+                }
+            """,
+            "button1": """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0078d4, stop:1 #0063b1);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 12px 0;
+                    font-size: 16px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #006cbd, stop:1 #005291);
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #005291, stop:1 #004677);
+                    padding: 14px 0 10px 0;
+                }
+            """,
+            "button2": """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e06c75, stop:1 #d64c58);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 12px 0;
+                    font-size: 16px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #b94a59, stop:1 #a43b47);
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #9e3f4c, stop:1 #8f3640);
+                    padding: 14px 0 10px 0;
+                }
+            """,
+            "theme": """
+                QPushButton {
+                    background: #f3f4f7;
+                    color: #1a1a1a;
+                    border: 1.5px solid #cfd4db;
+                    border-radius: 8px;
+                    padding: 10px 0;
+                    font-size: 15px;
+                    font-weight: 500;
+                }
+                QPushButton:hover {
+                    background: #e6e8ec;
+                }
+                QPushButton:pressed {
+                    background: #d1d5db;
+                    padding: 12px 0 8px 0;
+                }
+            """,
+            "about_title_style": "font-size:16px; margin-bottom:4px;",
+            "about_title_html": "<b style='color:#1a1a1a;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#555555;'>(v1.0.0)</span>",
+            "about_info_html": "<span style='font-size:11px; color:#666666;'>Автор: AvenCores</span>",
+            "about_link_html": "<a href='#' style='color:#0078d4; text-decoration:none; font-size:13px;'>⟵ В меню</a>",
+        }
+
+class CustomWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.is_animating = False
+        self.original_size = None
+        self.stacked_widget: Optional[QStackedWidget] = None
+        self._current_animation: Optional[QPropertyAnimation] = None
+        self.original_geometry: Optional[QRect] = None
+        self.dark_theme = False
+        self.styles = {}
+        self.title_bar: Optional[QWidget] = None
+
+    def mousePressEvent(self, event):
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.title_bar is not None
+            and self.title_bar.underMouse()
+        ):
+            self.dragPos = event.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, event):
+        if hasattr(self, 'dragPos') and self.dragPos:
+            delta = event.globalPosition().toPoint() - self.dragPos
+            self.move(self.pos() + delta)
+            self.dragPos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event):
+        self.dragPos = None
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    # --- Установка иконки приложения ---
+    import sys
+    import os
+    def resource_path(relative_path):
+        """ Get absolute path to resource, works for dev and for PyInstaller """
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS  # type: ignore[attr-defined]
+        except Exception:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, relative_path)
+
+    icon_path = resource_path("icon.ico")
+    app.setWindowIcon(QIcon(icon_path))
+
+    main_window = CustomWindow()
+    main_window.stacked_widget = QStackedWidget()
+    main_window.original_geometry = None
+    main_window.setWindowTitle("Goida AI Unlocker")
+    main_window.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+    main_window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    main_window.dark_theme = is_windows_dark_theme()
+    main_window.styles = get_stylesheet(main_window.dark_theme)
+    main_window.setStyleSheet(main_window.styles["main"])
+    main_window.setWindowIcon(QIcon(icon_path))
+
+    # --- Главный контейнер ---
+    main_container = QWidget()
+    main_layout = QVBoxLayout(main_container)
+    main_layout.setContentsMargins(0, 0, 0, 0)
+    main_layout.setSpacing(0)
+
+    # Title bar (вынесен отдельно, всегда сверху)
+    title_bar = QWidget()
+    title_bar.setObjectName("titleBar")
+    title_bar.setFixedHeight(32)
+    main_window.title_bar = title_bar # Для доступа в mousePressEvent
+    title_bar_layout = QHBoxLayout(title_bar)
+    title_bar_layout.setContentsMargins(12, 0, 8, 0)
+    title_bar_layout.setSpacing(0)
+    title_label = QLabel("Goida AI Unlocker")
+    title_label.setStyleSheet("""
+        QLabel {
+            color: #666666;
+            font-size: 13px;
+            font-weight: bold;
+            background: transparent;
+        }
+    """)
+    title_bar_layout.addWidget(title_label)
+    title_bar_layout.addStretch()
+    minimize_button = QPushButton("─")
+    minimize_button.setFixedSize(26, 26)
+    minimize_button.clicked.connect(main_window.showMinimized)
+    minimize_button.setStyleSheet("""
+        QPushButton { background: transparent; color: #666666; border: none; font-size: 14px; font-weight: bold; }
+        QPushButton:hover { color: #2d7dff; }
+    """)
+    close_button = QPushButton("×")
+    close_button.setFixedSize(26, 26)
+    close_button.clicked.connect(app.quit)
+    close_button.setStyleSheet("""
+        QPushButton { background: transparent; color: #666666; border: none; font-size: 18px; font-weight: bold; }
+        QPushButton:hover { color: #e06c75; }
+    """)
+    title_bar_layout.addWidget(minimize_button)
+    title_bar_layout.addWidget(close_button)
+    main_layout.addWidget(title_bar)
+
+    # --- Центральный виджет (меняется в стеке) ---
+    central_widget = QWidget()
+    outer_layout = QVBoxLayout(central_widget)
+    outer_layout.setContentsMargins(0, 0, 0, 0)
+    outer_layout.setSpacing(0)
+    outer_layout.addStretch()
+    layout = QVBoxLayout()
+    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.setSpacing(24)
+    layout.setContentsMargins(20, 20, 20, 20)
+    outer_layout.addLayout(layout)
+    outer_layout.addStretch()
+
+    def fix_widget_size(w):
+        w.setMinimumSize(main_window.width(), main_window.height() - title_bar.height())
+        w.setMaximumSize(main_window.width(), main_window.height() - title_bar.height())
+
+    main_window.resize(500, 500)
+
+    def on_main_window_resize(event=None):
+        fix_widget_size(central_widget)
+        if main_window.stacked_widget:
+            current = main_window.stacked_widget.currentWidget()
+            if current:
+                fix_widget_size(current)
+
+    old_resize_event = main_window.resizeEvent
+    def new_resize_event(self, event):
+        old_resize_event(event)
+        on_main_window_resize(event)
+    main_window.resizeEvent = new_resize_event.__get__(main_window, CustomWindow)
+
+    status = "Установлено" if check_installation() else "Не установлено"
+    color = "#43b581" if status == "Установлено" else "#e06c75"
+    textinformer = QLabel(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
+    textinformer.setTextFormat(Qt.TextFormat.RichText)
+    textinformer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    textinformer.setStyleSheet(main_window.styles["label"])
+    layout.addWidget(textinformer)
+
+    button = QPushButton("Установить обход блокировок")
+    button.setStyleSheet(main_window.styles["button1"])
+    button2 = QPushButton("Удалить обход блокировок")
+    button2.setStyleSheet(main_window.styles["button2"])
+    theme_button = QPushButton("Сменить тему")
+    theme_button.setStyleSheet(main_window.styles["theme"])
+    donate_button = QPushButton("Донат")
+    donate_button.setStyleSheet(main_window.styles["theme"])
+    about_button = QPushButton("О программе")
+    about_button.setStyleSheet(main_window.styles["theme"])
+
+    def restore_original_hosts():
+        if sys.platform != 'win32':
+            print("Эта функция предназначена только для Windows.")
+            return False
+        try:
+            default_hosts = ('# Copyright (c) 1993-2009 Microsoft Corp.\n#\n'
+                             '# This is a sample HOSTS file used by Microsoft TCP/IP for Windows.\n#\n'
+                             '# This file contains the mappings of IP addresses to host names. Each\n'
+                             '# entry should be kept on an individual line. The IP address should\n'
+                             '# be placed in the first column followed by the corresponding host name.\n'
+                             '# The IP address and the host name should be separated by at least one\n# space.\n#\n'
+                             '# Additionally, comments (such as these) may be inserted on individual\n'
+                             '# lines or following the machine name denoted by a \'#\' symbol.\n#\n'
+                             '# For example:\n#\n#      102.54.94.97     rhino.acme.com          # source server\n'
+                             '#       38.25.63.10     x.acme.com              # x client host\n\n'
+                             '# localhost name resolution is handled within DNS itself.\n'
+                             '#   127.0.0.1       localhost\n#   ::1             localhost')
+            with tempfile.NamedTemporaryFile('w', delete=False, suffix='.txt', encoding='utf-8') as temp_file:
+                temp_file.write(default_hosts)
+                temp_path = temp_file.name
+
+            ps_content = f'''
+$source = "{temp_path}"
+$dest = "C:\\Windows\\System32\\drivers\\etc\\hosts"
+Copy-Item -Path $source -Destination $dest -Force
+'''
+            with tempfile.NamedTemporaryFile('w', delete=False, suffix='.ps1', encoding='utf-8') as ps_file:
+                ps_file.write(ps_content)
+                ps_script_path = ps_file.name
+
+            command = ["powershell", "-Command", f'Start-Process powershell -Verb runAs -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait']
+            subprocess.run(command, check=True)
+
+            try:
+                os.remove(temp_path)
+                os.remove(ps_script_path)
+            except OSError:
+                pass
+            import time
+            time.sleep(1)
+            return True
+        except Exception as e:
+            print(f"Ошибка: {e}")
+            return False
+
+    if main_window.stacked_widget:
+        main_window.stacked_widget.addWidget(central_widget)
+    main_layout.addWidget(main_window.stacked_widget)
+    main_window.setCentralWidget(main_container)
+
+    def animate_widget_switch(new_widget, on_finish=None):
+        if not main_window.stacked_widget: return
+        current_widget = main_window.stacked_widget.currentWidget()
+        if not current_widget or current_widget == new_widget:
+            main_window.stacked_widget.setCurrentWidget(new_widget)
+            if on_finish: on_finish()
+            return
+
+        fix_widget_size(new_widget)
+        effect = QGraphicsOpacityEffect(current_widget)
+        current_widget.setGraphicsEffect(effect)
+        fade_out = QPropertyAnimation(effect, b"opacity")
+        fade_out.setDuration(180)
+        fade_out.setStartValue(1.0)
+        fade_out.setEndValue(0.0)
+
+        def after_fade_out():
+            if main_window.stacked_widget is not None:
+                main_window.stacked_widget.setCurrentWidget(new_widget)
+                effect2 = QGraphicsOpacityEffect(new_widget)
+                new_widget.setGraphicsEffect(effect2)
+                fade_in = QPropertyAnimation(effect2, b"opacity")
+                fade_in.setDuration(180)
+                fade_in.setStartValue(0.0)
+                fade_in.setEndValue(1.0)
+                def clear_anim():
+                    new_widget.setGraphicsEffect(None)
+                    main_window._current_animation = None
+                fade_in.finished.connect(clear_anim)
+                if on_finish: fade_in.finished.connect(on_finish)
+                main_window._current_animation = fade_in
+                fade_in.start()
+
+        fade_out.finished.connect(after_fade_out)
+        main_window._current_animation = fade_out
+        fade_out.start()
+
+    def update_subwindow_styles():
+        if not main_window.stacked_widget: return
+        for i in range(main_window.stacked_widget.count()):
+            w = main_window.stacked_widget.widget(i)
+            if w is central_widget: continue
+            w.setStyleSheet(main_window.styles["main"])
+            for child in w.findChildren(QPushButton):
+                text = child.text().lower()
+                if any(keyword in text for keyword in ["донат", "о программе", "github", "вернуться", "меню", "telegram", "youtube", "rutube", "дзен", "dzen", "vk"]):
+                    child.setStyleSheet(main_window.styles["theme"])
+                elif "копировать" in text or "окей" in text:
+                    child.setStyleSheet(main_window.styles["button1"])
+                elif "удалить" in text:
+                    child.setStyleSheet(main_window.styles["button2"])
+                else: child.setStyleSheet(main_window.styles["button1"])
+
+            for child in w.findChildren(QLabel):
+                obj_name = child.objectName()
+                if obj_name == "about_title":
+                    child.setText(main_window.styles["about_title_html"])
+                    child.setStyleSheet(main_window.styles["about_title_style"])
+                elif obj_name == "about_info":
+                    child.setText(main_window.styles["about_info_html"])
+                elif obj_name == "about_link":
+                    child.setText(main_window.styles["about_link_html"])
+                elif obj_name == "message_emoji": continue
+                else: child.setStyleSheet(main_window.styles["label"])
+
+    def show_message_and_return(msg, success=True):
+        message_widget = QWidget()
+        vbox = QVBoxLayout(message_widget)
+        vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.setSpacing(24)
+        vbox.setContentsMargins(20, 20, 20, 20)
+        fix_widget_size(message_widget)
+
+        emoji = "✅" if success else "❌"
+        emoji_label = QLabel(emoji)
+        emoji_label.setObjectName("message_emoji")
+        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        emoji_label.setStyleSheet("font-size: 36px; margin-bottom: 8px;")
+        vbox.addWidget(emoji_label)
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(label)
+        ok_btn = QPushButton("Окей")
+        vbox.addWidget(ok_btn)
+
+        if main_window.stacked_widget:
+            main_window.stacked_widget.addWidget(message_widget)
+        update_subwindow_styles()
+        animate_widget_switch(message_widget)
+
+        def return_to_main():
+            def do_remove_message_widget():
+                if main_window.stacked_widget: main_window.stacked_widget.removeWidget(message_widget)
+                message_widget.deleteLater()
+            animate_widget_switch(central_widget, on_finish=do_remove_message_widget)
+        ok_btn.clicked.connect(return_to_main)
+
+    def on_install_click():
+        ok = update_hosts_as_admin()
+        if ok:
+            show_message_and_return("Файл hosts успешно обновлён!\nВозможно потребуется перезапустить браузер.", success=True)
+            def update_status():
+                status = "Установлено" if check_installation() else "Не установлено"
+                color = "#43b581" if status == "Установлено" else "#e06c75"
+                textinformer.setText(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
+            QTimer.singleShot(500, update_status)
+        else:
+            show_message_and_return("Не удалось обновить файл hosts.\nЗапустите программу от имени администратора.", success=False)
+
+    def on_uninstall_click():
+        ok = restore_original_hosts()
+        if ok:
+            show_message_and_return("Файл hosts успешно восстановлен!\nВозможно потребуется перезапустить браузер.", success=True)
+            def update_status():
+                status = "Установлено" if check_installation() else "Не установлено"
+                color = "#43b581" if status == "Установлено" else "#e06c75"
+                textinformer.setText(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
+            QTimer.singleShot(500, update_status)
+        else:
+            show_message_and_return("Не удалось восстановить файл hosts.\nЗапустите программу от имени администратора.", success=False)
+
+    button.clicked.connect(on_install_click)
+    button2.clicked.connect(on_uninstall_click)
+
+    def switch_theme():
+        if main_window.is_animating: return
+        main_window.is_animating = True
+        animation_steps, time_interval = 15, 20
+
+        def fade_out(step=1.0):
+            if step >= 0:
+                main_window.setWindowOpacity(step)
+                QTimer.singleShot(time_interval, lambda: fade_out(step - 1.0 / animation_steps))
+            else:
+                main_window.setWindowOpacity(0)
+                main_window.dark_theme = not main_window.dark_theme
+                main_window.styles = get_stylesheet(main_window.dark_theme)
+                main_window.setStyleSheet(main_window.styles["main"])
+                textinformer.setStyleSheet(main_window.styles["label"])
+                button.setStyleSheet(main_window.styles["button1"])
+                button2.setStyleSheet(main_window.styles["button2"])
+                theme_button.setStyleSheet(main_window.styles["theme"])
+                donate_button.setStyleSheet(main_window.styles["theme"])
+                about_button.setStyleSheet(main_window.styles["theme"])
+                update_subwindow_styles()
+                fade_in()
+
+        def fade_in(step=0.0):
+            if step <= 1.0:
+                main_window.setWindowOpacity(step)
+                QTimer.singleShot(time_interval, lambda: fade_in(step + 1.0 / animation_steps))
+            else:
+                main_window.setWindowOpacity(1.0)
+                main_window.is_animating = False
+
+        fade_out()
+    theme_button.clicked.connect(switch_theme)
+
+    def show_donate_window():
+        donate_widget = QWidget()
+        vbox = QVBoxLayout(donate_widget)
+        vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.setSpacing(24)
+        vbox.setContentsMargins(20, 20, 20, 20)
+        fix_widget_size(donate_widget)
+
+        label1 = QLabel("⬇️Поддержать автора⬇️")
+        label1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(label1)
+        card = "2202 2050 7215 4401"
+        label2 = QLabel(f"✅SBER: <b>{card}</b>")
+        label2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(label2)
+        copy_btn = QPushButton("Скопировать номер карты")
+        vbox.addWidget(copy_btn)
+        back_btn = QPushButton("Вернуться в меню")
+        vbox.addWidget(back_btn)
+
+        def copy_card():
+            QApplication.clipboard().setText(card)
+            copy_btn.setText("Скопировано!")
+            QTimer.singleShot(1200, lambda: copy_btn.setText("Скопировать номер карты"))
+        def return_to_main():
+            def do_remove_donate_widget():
+                if main_window.stacked_widget: main_window.stacked_widget.removeWidget(donate_widget)
+                donate_widget.deleteLater()
+            animate_widget_switch(central_widget, on_finish=do_remove_donate_widget)
+
+        copy_btn.clicked.connect(copy_card)
+        back_btn.clicked.connect(return_to_main)
+
+        if main_window.stacked_widget: main_window.stacked_widget.addWidget(donate_widget)
+        update_subwindow_styles()
+        animate_widget_switch(donate_widget)
+    donate_button.clicked.connect(show_donate_window)
+
+    layout.addWidget(button)
+    layout.addWidget(button2)
+    theme_donate_hbox = QHBoxLayout()
+    theme_donate_hbox.setSpacing(12)
+    theme_donate_hbox.addWidget(theme_button)
+    theme_donate_hbox.addWidget(donate_button)
+    layout.addLayout(theme_donate_hbox)
+    layout.addStretch()
+    layout.addWidget(about_button)
+
+    def show_about_window():
+        about_widget = QWidget()
+        vbox = QVBoxLayout(about_widget)
+        vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.setSpacing(8)
+        vbox.setContentsMargins(12, 12, 12, 12)
+        
+        icon_label = QLabel("<span style='font-size:32px;'>💡</span>")
+        icon_label.setObjectName("message_emoji")
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(icon_label)
+
+        label_ver = QLabel()
+        label_ver.setObjectName("about_title")
+        label_ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(label_ver)
+
+        info = QLabel()
+        info.setObjectName("about_info")
+        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(info)
+
+        github_btn = QPushButton("🌐 GitHub")
+        github_btn.clicked.connect(lambda: os.startfile("https://github.com/AvenCores/Goida-AI-Unlocker"))
+        vbox.addWidget(github_btn)
+
+        social_buttons = [("📢 Telegram", "https://t.me/avencoresyt"), ("▶ YouTube", "https://youtube.com/@avencores"),
+                          ("🎬 RuTube", "https://rutube.ru/channel/34072414"), ("📰 Dzen", "https://dzen.ru/avencores"),
+                          ("👥 VK", "https://vk.com/avencoresvk")]
+        for text, url in social_buttons:
+            btn = QPushButton(text)
+            btn.setStyleSheet("font-size:13px; min-width:120px; margin-bottom:2px;")
+            btn.clicked.connect(lambda checked, u=url: os.startfile(u))
+            vbox.addWidget(btn)
+
+        back_label = QLabel()
+        back_label.setObjectName("about_link")
+        back_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        back_label.setStyleSheet("margin-top:10px;")
+        back_label.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        def return_to_main():
+            def do_remove_about_widget():
+                if main_window.stacked_widget: main_window.stacked_widget.removeWidget(about_widget)
+                about_widget.deleteLater()
+            animate_widget_switch(central_widget, on_finish=do_remove_about_widget)
+        back_label.linkActivated.connect(lambda _: return_to_main())
+        vbox.addWidget(back_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        if main_window.stacked_widget: main_window.stacked_widget.addWidget(about_widget)
+        update_subwindow_styles()
+        animate_widget_switch(about_widget)
+    about_button.clicked.connect(show_about_window)
+
+    main_window.show()
+    on_main_window_resize()
+    
+    sys.exit(app.exec())

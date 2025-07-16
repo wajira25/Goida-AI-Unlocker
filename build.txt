@@ -1,0 +1,1 @@
+pyinstaller main.py --onefile --noconsole --icon=icon.ico --clean --strip --name=my_app --add-data "icon.ico;."
