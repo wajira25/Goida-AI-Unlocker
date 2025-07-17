@@ -42,7 +42,7 @@
 
 ## 📸 Скриншот интерфейса
 <div align="center">
-  <img width="500" height="500" alt="467253102-3c199b46-d1c6-4f9b-a7a0-1a7dde945817" src="https://github.com/user-attachments/assets/50764a25-7f52-4a39-a370-54fdbff7f67d" />
+  <img width="500" height="500" alt="Без имени-1" src="https://github.com/user-attachments/assets/4b1751bf-b46b-4c70-91c0-bac84e8b9c32" />
 </div>
 
 ---
