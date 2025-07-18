@@ -12,6 +12,7 @@ except ImportError:
     print("Ошибка: библиотека PySide6 не установлена. Пожалуйста, установите ее командой: pip install PySide6")
     sys.exit(1)
 from typing import Optional
+import json
 
 def check_installation():
     # Эта функция будет работать только на Windows
@@ -483,6 +484,10 @@ if __name__ == "__main__":
     about_button = QPushButton("ℹ️ О программе")
     about_button.setStyleSheet(main_window.styles["theme"])
 
+    update_button = QPushButton("🔄 Проверить обновления")
+    update_button.setStyleSheet(main_window.styles["theme"])
+    update_button.clicked.connect(lambda: check_for_updates())
+
     def restore_original_hosts():
         if sys.platform != 'win32':
             print("Эта функция предназначена только для Windows.")
@@ -635,6 +640,34 @@ Copy-Item -Path $source -Destination $dest -Force
                 message_widget.deleteLater()
             animate_widget_switch(central_widget, on_finish=do_remove_message_widget)
         ok_btn.clicked.connect(return_to_main)
+
+    # --- Функция проверки обновлений ---
+    def check_for_updates():
+        import json as _json  # локальный импорт, чтобы не конфликтовать
+        def worker():
+            try:
+                with open("app_info.json", "r", encoding="utf-8") as _f:
+                    _local = _json.load(_f)
+                local_ver = _local.get("version", "0.0.0")
+                remote_url = _local.get("update_info_url")
+                if not remote_url:
+                    raise RuntimeError("URL обновления не найден.")
+                remote_data = _json.loads(urllib.request.urlopen(remote_url, timeout=10).read().decode("utf-8"))
+                remote_ver = remote_data.get("version", "0.0.0")
+
+                def _parse(v):
+                    return tuple(int(x) for x in v.strip("vV").split(".") if x.isdigit())
+                msg = (
+                    f"Доступна новая версия v{remote_ver}!\nСкачайте её с GitHub."
+                    if _parse(remote_ver) > _parse(local_ver)
+                    else "У вас установлена последняя версия."
+                )
+                QTimer.singleShot(0, main_window, lambda m=msg: show_message_and_return(m, success=True, animate=True))
+            except Exception as e:
+                err = f"Не удалось проверить обновления.\n{e}"
+                QTimer.singleShot(0, main_window, lambda m=err: show_message_and_return(m, success=False, animate=True))
+        threading.Thread(target=worker, daemon=True).start()
+    # --------------------------------------------------------------
 
     # --- Новая функция: промежуточное окно установки/удаления/обновления ---
     def start_installation(action: str = "install"):
@@ -874,6 +907,7 @@ Copy-Item -Path $source -Destination $dest -Force
     theme_donate_hbox = QHBoxLayout()
     theme_donate_hbox.setSpacing(12)
     theme_donate_hbox.addWidget(theme_button)
+    theme_donate_hbox.addWidget(update_button)
     theme_donate_hbox.addWidget(donate_button)
     layout.addLayout(theme_donate_hbox)
     layout.addStretch()
