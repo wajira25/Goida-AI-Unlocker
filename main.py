@@ -181,8 +181,8 @@ def get_stylesheet(dark):
                     padding: 12px 0 8px 0;
                 }
             """,
-            "about_title_style": "font-size:16px; margin-bottom:4px;",
-            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#bfc9db;'>(v1.0.3)</span>",
+            "about_title_style": "font-size:25px; margin-bottom:4px;",
+            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:15px; color:#bfc9db;'>(v1.0.3)</span>",
             "about_info_html": "<span style='font-size:11px; color:#888;'>Автор: AvenCores</span>",
             "about_link_html": "<a href='#' style='color:#2d7dff; text-decoration:none; font-size:13px;'>⟵ В меню</a>",
         }
