@@ -14,6 +14,9 @@ except ImportError:
 from typing import Optional
 import json
 
+# Placeholder, real version will be loaded from app_info.json at runtime
+APP_VERSION = "0.0.0"
+
 def check_installation():
     # Эта функция будет работать только на Windows
     if sys.platform != 'win32':
@@ -182,7 +185,7 @@ def get_stylesheet(dark):
                 }
             """,
             "about_title_style": "font-size:25px; margin-bottom:4px;",
-            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:15px; color:#bfc9db;'>(v1.0.3)</span>",
+            "about_title_html": f"<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:15px; color:#bfc9db;'>(v{APP_VERSION})</span>",
             "about_info_html": "<span style='font-size:11px; color:#888;'>Автор: AvenCores</span>",
             "about_link_html": "<a href='#' style='color:#2d7dff; text-decoration:none; font-size:13px;'>⟵ В меню</a>",
         }
@@ -268,8 +271,8 @@ def get_stylesheet(dark):
                     padding: 12px 0 8px 0;
                 }
             """,
-            "about_title_style": "font-size:16px; margin-bottom:4px;",
-            "about_title_html": "<b style='color:#1a1a1a;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#555555;'>(v1.0.0)</span>",
+            "about_title_style": "font-size:25px; margin-bottom:4px;",
+            "about_title_html": f"<b style='color:#1a1a1a;'>Goida AI Unlocker</b> <span style='font-size:15px; color:#555555;'>(v{APP_VERSION})</span>",
             "about_info_html": "<span style='font-size:11px; color:#666666;'>Автор: AvenCores</span>",
             "about_link_html": "<a href='#' style='color:#0078d4; text-decoration:none; font-size:13px;'>⟵ В меню</a>",
         }
@@ -343,6 +346,8 @@ def get_hosts_version_status() -> tuple[str, str]:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    # Убираем фокус-обводку (dotted outline) у всех кнопок
+    app.setStyleSheet("QPushButton:focus { outline: none; }")
 
     # --- Установка иконки приложения ---
     import sys
@@ -355,6 +360,15 @@ if __name__ == "__main__":
         except Exception:
             base_path = os.path.abspath(".")
         return os.path.join(base_path, relative_path)
+
+    # --------- Load application version from app_info.json ---------
+    try:
+        with open(resource_path("app_info.json"), "r", encoding="utf-8") as _vf:
+            APP_VERSION = json.load(_vf).get("version", APP_VERSION)
+    except Exception:
+        # If file missing or malformed, keep placeholder
+        pass
+    # --------------------------------------------------------------
 
     icon_path = resource_path("icon.ico")
     app.setWindowIcon(QIcon(icon_path))
