@@ -50,6 +50,11 @@ def update_hosts_as_admin():
 $source = "{temp_path}"
 $dest = "C:\\Windows\\System32\\drivers\\etc\\hosts"
 Copy-Item -Path $source -Destination $dest -Force
+Clear-DnsClientCache
+ipconfig /flushdns
+ipconfig /release
+ipconfig /renew
+netsh winsock reset
 '''
         with tempfile.NamedTemporaryFile('w', delete=False, suffix='.ps1', encoding='utf-8') as ps_file:
             ps_file.write(ps_content)
@@ -177,7 +182,7 @@ def get_stylesheet(dark):
                 }
             """,
             "about_title_style": "font-size:16px; margin-bottom:4px;",
-            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#bfc9db;'>(v1.0.2)</span>",
+            "about_title_html": "<b style='color:#f3f6fd;'>Goida AI Unlocker</b> <span style='font-size:11px; color:#bfc9db;'>(v1.0.3)</span>",
             "about_info_html": "<span style='font-size:11px; color:#888;'>Автор: AvenCores</span>",
             "about_link_html": "<a href='#' style='color:#2d7dff; text-decoration:none; font-size:13px;'>⟵ В меню</a>",
         }
@@ -322,7 +327,8 @@ def get_hosts_version_status() -> tuple[str, str]:
         with open(hosts_path, "rb") as lf:
             local_line = _extract_update_line(lf.read())
 
-        remote_url = "https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts"
+        import time as _t
+        remote_url = f"https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts?t={int(_t.time())}"
         remote_line = _extract_update_line(urllib.request.urlopen(remote_url, timeout=10).read())
 
         # Hosts is up-to-date if the update line matches the remote one
@@ -424,7 +430,8 @@ if __name__ == "__main__":
         w.setMinimumSize(main_window.width(), main_window.height() - title_bar.height())
         w.setMaximumSize(main_window.width(), main_window.height() - title_bar.height())
 
-    main_window.resize(500, 500)
+    # изменяем размер окна
+    main_window.resize(640, 640)
 
     def on_main_window_resize(event=None):
         fix_widget_size(central_widget)
@@ -513,6 +520,11 @@ if __name__ == "__main__":
 $source = "{temp_path}"
 $dest = "C:\\Windows\\System32\\drivers\\etc\\hosts"
 Copy-Item -Path $source -Destination $dest -Force
+Clear-DnsClientCache
+ipconfig /flushdns
+ipconfig /release
+ipconfig /renew
+netsh winsock reset
 '''
             with tempfile.NamedTemporaryFile('w', delete=False, suffix='.ps1', encoding='utf-8') as ps_file:
                 ps_file.write(ps_content)
@@ -641,28 +653,72 @@ Copy-Item -Path $source -Destination $dest -Force
             animate_widget_switch(central_widget, on_finish=do_remove_message_widget)
         ok_btn.clicked.connect(return_to_main)
 
+    # --- Окно уведомления об обновлении ---
+    def show_update_available(version_str: str, dl_url: str):
+        update_widget = QWidget()
+        vbox = QVBoxLayout(update_widget)
+        vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.setSpacing(24)
+        vbox.setContentsMargins(20, 20, 20, 20)
+        fix_widget_size(update_widget)
+
+        emoji_label = QLabel("❗")
+        emoji_label.setObjectName("message_emoji")
+        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        emoji_label.setStyleSheet("font-size: 36px; margin-bottom: 8px;")
+        vbox.addWidget(emoji_label)
+
+        label = QLabel(f"Доступна новая версия v{version_str}!")
+        label.setWordWrap(True)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(label)
+
+        download_btn = QPushButton("Скачать")
+        vbox.addWidget(download_btn)
+
+        ok_btn2 = QPushButton("Окей")
+        vbox.addWidget(ok_btn2)
+
+        if main_window.stacked_widget:
+            main_window.stacked_widget.addWidget(update_widget)
+        update_subwindow_styles()
+        animate_widget_switch(update_widget)
+
+        # Открываем ссылку на загрузку
+        download_btn.clicked.connect(lambda: os.startfile(dl_url))
+
+        def return_to_main2():
+            def do_remove_update_widget():
+                if main_window.stacked_widget:
+                    main_window.stacked_widget.removeWidget(update_widget)
+                update_widget.deleteLater()
+            animate_widget_switch(central_widget, on_finish=do_remove_update_widget)
+        ok_btn2.clicked.connect(return_to_main2)
+
     # --- Функция проверки обновлений ---
     def check_for_updates():
         import json as _json  # локальный импорт, чтобы не конфликтовать
         def worker():
             try:
-                with open("app_info.json", "r", encoding="utf-8") as _f:
+                # Используем resource_path, чтобы корректно находить файл как при разработке, так и внутри собранного exe
+                with open(resource_path("app_info.json"), "r", encoding="utf-8") as _f:
                     _local = _json.load(_f)
                 local_ver = _local.get("version", "0.0.0")
+                import time as _t
                 remote_url = _local.get("update_info_url")
                 if not remote_url:
                     raise RuntimeError("URL обновления не найден.")
-                remote_data = _json.loads(urllib.request.urlopen(remote_url, timeout=10).read().decode("utf-8"))
+                remote_data = _json.loads(urllib.request.urlopen(f"{remote_url}?t={int(_t.time())}", timeout=10).read().decode("utf-8"))
                 remote_ver = remote_data.get("version", "0.0.0")
+                download_url = remote_data.get("download_url", "https://github.com/AvenCores/Goida-AI-Unlocker")
 
                 def _parse(v):
                     return tuple(int(x) for x in v.strip("vV").split(".") if x.isdigit())
-                msg = (
-                    f"Доступна новая версия v{remote_ver}!\nСкачайте её с GitHub."
-                    if _parse(remote_ver) > _parse(local_ver)
-                    else "У вас установлена последняя версия."
-                )
-                QTimer.singleShot(0, main_window, lambda m=msg: show_message_and_return(m, success=True, animate=True))
+                newer = _parse(remote_ver) > _parse(local_ver)
+                if newer:
+                    QTimer.singleShot(0, main_window, lambda v=remote_ver, u=download_url: show_update_available(v, u))
+                else:
+                    QTimer.singleShot(0, main_window, lambda: show_message_and_return("У вас установлена последняя версия.", success=True, animate=True))
             except Exception as e:
                 err = f"Не удалось проверить обновления.\n{e}"
                 QTimer.singleShot(0, main_window, lambda m=err: show_message_and_return(m, success=False, animate=True))
@@ -907,10 +963,11 @@ Copy-Item -Path $source -Destination $dest -Force
     theme_donate_hbox = QHBoxLayout()
     theme_donate_hbox.setSpacing(12)
     theme_donate_hbox.addWidget(theme_button)
-    theme_donate_hbox.addWidget(update_button)
     theme_donate_hbox.addWidget(donate_button)
     layout.addLayout(theme_donate_hbox)
     layout.addStretch()
+    # Кнопка проверки обновлений выводится вертикально перед кнопкой «О программе»
+    layout.addWidget(update_button)
     layout.addWidget(about_button)
 
     def show_about_window():
