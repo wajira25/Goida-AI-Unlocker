@@ -94,7 +94,7 @@ python main.py
 Для создания портативного одного файла используется [PyInstaller](https://pyinstaller.org/):
 
 ```bash
-pyinstaller main.py --onefile --noconsole --icon=icon.ico --clean --strip --name "Goida AI Unlocker" --add-data "icon.ico;."
+pyinstaller main.py --onefile --noconsole --icon=icon.ico --clean --strip --name="Goida AI Unlocker" --add-data "icon.ico;." --add-data "app_info.json;."
 ```
 
 Скомпилированный файл появится в директории <code>dist/</code>.
