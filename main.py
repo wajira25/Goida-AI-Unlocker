@@ -8,8 +8,9 @@ import atexit
 import time as _time  # for retry sleeps
 try:
     from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget, QSizePolicy
-    from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect
-    from PySide6.QtGui import QIcon
+    from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QSize, QObject
+    from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
+    from PySide6.QtSvg import QSvgRenderer
 except ImportError:
     print("Ошибка: библиотека PySide6 не установлена. Пожалуйста, установите ее командой: pip install PySide6")
     sys.exit(1)
@@ -162,10 +163,10 @@ def get_stylesheet(dark):
                     font-weight: 600;
                 }
                 QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1857a4, stop:1 #1e4c8f);
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #246cf0, stop:1 #235bcc);
                 }
                 QPushButton:pressed {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #154b8f, stop:1 #1a4277);
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e5ed2, stop:1 #1c52b0);
                     padding: 14px 0 10px 0;
                 }
             """,
@@ -183,7 +184,7 @@ def get_stylesheet(dark):
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #b94a59, stop:1 #a43b47);
                 }
                 QPushButton:pressed {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #9e3f4c, stop:1 #8f3640);
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #a84a57, stop:1 #973f4a);
                     padding: 14px 0 10px 0;
                 }
             """,
@@ -198,10 +199,11 @@ def get_stylesheet(dark):
                     font-weight: 500;
                 }
                 QPushButton:hover {
-                    background: #f3f4f7;
+                    /* slightly darker on hover to simulate dimming */
+                    background: #d1d4d8;
                 }
                 QPushButton:pressed {
-                    background: #d1d5db;
+                    background: #bfc3c9;
                     padding: 12px 0 8px 0;
                 }
             """,
@@ -382,6 +384,74 @@ if __name__ == "__main__":
             base_path = os.path.abspath(".")
         return os.path.join(base_path, relative_path)
 
+    # ------------------ NEW: SVG icon helpers ------------------
+    def _tint_pixmap(pix: QPixmap, color: QColor) -> QPixmap:
+        """Re-color a pixmap while preserving alpha."""
+        if pix.isNull():
+            return pix
+        tinted = QPixmap(pix.size())
+        tinted.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(tinted)
+        painter.setCompositionMode(QPainter.CompositionMode_Source)  # type: ignore[attr-defined]
+        painter.drawPixmap(0, 0, pix)  # original alpha
+        painter.setCompositionMode(QPainter.CompositionMode_SourceIn)  # type: ignore[attr-defined]
+        painter.fillRect(tinted.rect(), color)
+        painter.end()
+        return tinted
+
+    def get_icon(file_name: str, size_px: int | None = None, *, force_dark: bool = False, force_white: bool = False) -> QIcon:
+        """Load an SVG from ./icons and tint it depending on current theme."""
+        path = resource_path(os.path.join("icons", file_name))
+        # Render SVG directly at target size for crisp edges
+        render_size = size_px or 48
+        renderer = QSvgRenderer(path)
+        pix = QPixmap(render_size, render_size)
+        pix.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pix)
+        renderer.render(painter)
+        painter.end()
+        if force_white:
+            tint = QColor("#ffffff")
+        elif force_dark or (not main_window.dark_theme):
+            tint = QColor("#1a1a1a")
+        else:
+            tint = QColor("#ffffff")
+        tinted = _tint_pixmap(pix, tint)
+        return QIcon(tinted)
+
+    def create_icon_label(file_name: str, size: int = 48) -> QLabel:
+        """Return QLabel with a tinted icon pixmap."""
+        icon = get_icon(file_name, size)
+        label = QLabel()
+        label.setPixmap(icon.pixmap(size, size))
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setObjectName("message_emoji")
+        label.setProperty("icon_name", file_name)
+        return label
+
+    def refresh_icons(root_widget=None):
+        """Re-tint all buttons/labels that carry 'icon_name' property."""
+        if root_widget is None:
+            root_widget = main_window
+        classes = (QPushButton, QLabel)
+        for child in root_widget.findChildren(QObject):
+            if not isinstance(child, classes):
+                continue
+            name = child.property("icon_name")
+            if not name:
+                continue
+            if isinstance(child, QPushButton):
+                force_dark = bool(child.property("icon_force_dark"))
+                force_white = bool(child.property("icon_force_white"))
+                child.setIcon(get_icon(name, child.iconSize().width(), force_dark=force_dark, force_white=force_white))
+            else:  # QLabel
+                size = child.pixmap().width() if child.pixmap() else 32
+                force_dark = bool(child.property("icon_force_dark"))
+                force_white = bool(child.property("icon_force_white"))
+                child.setPixmap(get_icon(name, size, force_dark=force_dark, force_white=force_white).pixmap(size, size))
+        # function ends implicitly
+    # ------------------------------------------------------------
+
     # --------- Load application version from app_info.json ---------
     try:
         with open(resource_path("app_info.json"), "r", encoding="utf-8") as _vf:
@@ -521,18 +591,42 @@ if __name__ == "__main__":
 
     layout.addWidget(status_container)
 
-    button = QPushButton("⚙️ Установить обход блокировок")
+    button = QPushButton(" Установить обход блокировок")
+    button.setIcon(get_icon("settings.svg", 18, force_white=True))
+    button.setIconSize(QSize(18, 18))
+    button.setProperty("icon_name", "settings.svg")
+    button.setProperty("icon_force_white", True)
     button.setStyleSheet(main_window.styles["button1"])
-    button2 = QPushButton("🗑️ Удалить обход блокировок")
+    button2 = QPushButton(" Удалить обход блокировок")
+    button2.setIcon(get_icon("trash.svg", 18, force_white=True))
+    button2.setIconSize(QSize(18, 18))
+    button2.setProperty("icon_name", "trash.svg")
+    button2.setProperty("icon_force_white", True)
     button2.setStyleSheet(main_window.styles["button2"])
-    theme_button = QPushButton("🎨 Сменить тему")
+    theme_button = QPushButton(" Сменить тему")
+    theme_button.setIcon(get_icon("sun.svg", 18, force_dark=True))
+    theme_button.setIconSize(QSize(18, 18))
+    theme_button.setProperty("icon_name", "sun.svg")
+    theme_button.setProperty("icon_force_dark", True)
     theme_button.setStyleSheet(main_window.styles["theme"])
-    donate_button = QPushButton("💖 Донат")
+    donate_button = QPushButton(" Донат")
+    donate_button.setIcon(get_icon("heart.svg", 18, force_dark=True))
+    donate_button.setIconSize(QSize(18, 18))
+    donate_button.setProperty("icon_name", "heart.svg")
+    donate_button.setProperty("icon_force_dark", True)
     donate_button.setStyleSheet(main_window.styles["theme"])
-    about_button = QPushButton("ℹ️ О программе")
+    about_button = QPushButton(" О программе")
+    about_button.setIcon(get_icon("info.svg", 18, force_dark=True))
+    about_button.setIconSize(QSize(18, 18))
+    about_button.setProperty("icon_name", "info.svg")
+    about_button.setProperty("icon_force_dark", True)
     about_button.setStyleSheet(main_window.styles["theme"])
 
-    update_button = QPushButton("🔄 Проверить обновления")
+    update_button = QPushButton(" Проверить обновления")
+    update_button.setIcon(get_icon("refresh.svg", 18, force_dark=True))
+    update_button.setIconSize(QSize(18, 18))
+    update_button.setProperty("icon_name", "refresh.svg")
+    update_button.setProperty("icon_force_dark", True)
     update_button.setStyleSheet(main_window.styles["theme"])
     update_button.clicked.connect(lambda: check_for_updates())
 
@@ -647,6 +741,8 @@ netsh winsock reset
                 text = child.text().lower()
                 if any(keyword in text for keyword in ["донат", "о программе", "github", "вернуться", "меню", "telegram", "youtube", "rutube", "дзен", "dzen", "vk"]):
                     child.setStyleSheet(main_window.styles["theme"])
+                    # --- NEW: refresh icons tint ---
+                    refresh_icons()
                 elif "копировать" in text or "окей" in text:
                     child.setStyleSheet(main_window.styles["button1"])
                 elif "удалить" in text:
@@ -690,11 +786,9 @@ netsh winsock reset
         dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
         card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
 
-        emoji = "✅" if success else "❌"
-        emoji_label = QLabel(emoji)
-        emoji_label.setObjectName("message_emoji")
-        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_label.setStyleSheet("font-size: 36px; margin-top: 8px; margin-bottom: 8px;")
+        # Replace emoji label with SVG icon label
+        icon_file = "check-circle.svg" if success else "x-circle.svg"
+        emoji_label = create_icon_label(icon_file, size=48)
         card_layout.addWidget(emoji_label)
 
         # Show each line of the incoming message on its own QLabel instead of using \n within a single label
@@ -755,12 +849,9 @@ netsh winsock reset
         card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
 
         # ---- Содержимое карточки ----
-        emoji_label = QLabel("❗")
+        emoji_label = create_icon_label("alert.svg", size=48)
         emoji_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         emoji_label.setFixedHeight(48)
-        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_label.setObjectName("message_emoji")
-        emoji_label.setStyleSheet("font-size: 36px; margin-top: 8px; margin-bottom: 8px;")
         card_layout.addWidget(emoji_label)
 
         # ---- Версии без вложенных блоков ----
@@ -830,12 +921,13 @@ netsh winsock reset
         dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
         card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
 
-        emoji_label = QLabel("✅")
+        # Replace emoji label with SVG
+        emoji_label = create_icon_label("check-circle.svg", size=40)
         emoji_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         emoji_label.setFixedHeight(48)
         emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         emoji_label.setObjectName("message_emoji")
-        emoji_label.setStyleSheet("font-size: 36px;")
+        emoji_label.setStyleSheet("font-size: 48px;")
         card_layout.addWidget(emoji_label)
 
         installed_lbl = QLabel(f"ㅤУстановленная версия: <b>v{local_version}</b>ㅤ")
@@ -931,10 +1023,7 @@ netsh winsock reset
         dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
         card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
 
-        emoji_label = QLabel("⏳")
-        emoji_label.setObjectName("message_emoji")
-        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_label.setStyleSheet("font-size: 36px; margin-top: 8px; margin-bottom: 8px;")
+        emoji_label = create_icon_label("clock.svg", size=48)
         card_layout.addWidget(emoji_label)
 
         if action == "install":
@@ -1055,6 +1144,8 @@ netsh winsock reset
                 _dark_block = "background:#2d333b; border:1.5px solid #3c434d; border-radius:12px;"
                 status_container.setStyleSheet(_dark_block if main_window.dark_theme else _light_block)
                 update_subwindow_styles()
+                # --- NEW: refresh icons tint ---
+                refresh_icons()
                 fade_in()
 
         def fade_in(step=0.0):
@@ -1215,9 +1306,7 @@ netsh winsock reset
         vbox.setSpacing(8)
         vbox.setContentsMargins(12, 12, 12, 12)
 
-        icon_label = QLabel("<span style='font-size:32px;'>💡</span>")
-        icon_label.setObjectName("message_emoji")
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_label = create_icon_label("bulb.svg", size=32)
         vbox.addWidget(icon_label)
 
         label_ver = QLabel()
@@ -1230,17 +1319,27 @@ netsh winsock reset
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         vbox.addWidget(info)
 
-        github_btn = QPushButton("🌐 GitHub")
+        github_btn = QPushButton(" GitHub")
+        github_btn.setIcon(get_icon("info.svg", 18, force_dark=True))
+        github_btn.setIconSize(QSize(18, 18))
         github_btn.clicked.connect(lambda: os.startfile("https://github.com/AvenCores/Goida-AI-Unlocker"))
         vbox.addWidget(github_btn)
 
-        social_buttons = [("📢 Telegram", "https://t.me/avencoresyt"), ("▶ YouTube", "https://youtube.com/@avencores"),
-                          ("🎬 RuTube", "https://rutube.ru/channel/34072414"), ("📰 Dzen", "https://dzen.ru/avencores"),
-                          ("👥 VK", "https://vk.com/avencoresvk")]
-        for text, url in social_buttons:
-            btn = QPushButton(text)
+        social_buttons = [
+            ("Telegram", "https://t.me/avencoresyt", "send.svg"),
+            ("YouTube", "https://youtube.com/@avencores", "play.svg"),
+            ("RuTube", "https://rutube.ru/channel/34072414", "video.svg"),
+            ("Dzen", "https://dzen.ru/avencores", "book-open.svg"),
+            ("VK", "https://vk.com/avencoresvk", "users.svg"),
+        ]
+        for label, url, icon_file in social_buttons:
+            btn = QPushButton(" " + label)
+            btn.setIcon(get_icon(icon_file, 18, force_dark=True))
+            btn.setIconSize(QSize(18, 18))
+            btn.setProperty("icon_name", icon_file)
+            btn.setProperty("icon_force_dark", True)
             btn.setStyleSheet("font-size:13px; min-width:120px; margin-bottom:2px;")
-            btn.clicked.connect(lambda checked, u=url: os.startfile(u))
+            btn.clicked.connect(lambda checked=False, u=url: os.startfile(u))
             vbox.addWidget(btn)
 
         back_label = QLabel()
@@ -1272,9 +1371,9 @@ netsh winsock reset
                     f"Версия hosts - <span style='color:{clr}; font-weight:bold;'>{word}</span>")
                 # Изменяем надпись кнопки в зависимости от актуальности
                 if word == "Устарело":
-                    button.setText("⚙️ Обновить обход блокировок")
+                    button.setText(" Обновить обход блокировок")
                 else:
-                    button.setText("⚙️ Установить обход блокировок")
+                    button.setText(" Установить обход блокировок")
             QTimer.singleShot(0, main_window, apply)
         threading.Thread(target=worker, daemon=True).start()
     # -----------------------------------------------------------------
