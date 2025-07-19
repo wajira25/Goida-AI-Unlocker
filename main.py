@@ -4,8 +4,10 @@ import urllib.request
 import subprocess
 import os
 import threading  # Added for running blocking tasks in background
+import atexit
+import time as _time  # for retry sleeps
 try:
-    from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget
+    from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget, QSizePolicy
     from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect
     from PySide6.QtGui import QIcon
 except ImportError:
@@ -16,6 +18,29 @@ import json
 
 # Placeholder, real version will be loaded from app_info.json at runtime
 APP_VERSION = "0.0.0"
+
+# ----------------------- NEW: safe temp removal helper -----------------------
+def _safe_remove(path: str, retries: int = 3, delay: float = 0.3):
+    """Attempt to remove a temporary file. If immediate deletion fails,
+    retry a few times and, as a fallback, register the file for deletion
+    when the application exits."""
+    for _ in range(retries):
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+            return
+        except PermissionError:
+            _time.sleep(delay)
+        except Exception:
+            break
+
+    # If still not deleted, try again when the program terminates
+    try:
+        if os.path.exists(path):
+            atexit.register(lambda p=path: os.path.exists(p) and os.remove(p))
+    except Exception:
+        pass
+# ---------------------------------------------------------------------------
 
 def check_installation():
     # Эта функция будет работать только на Windows
@@ -30,19 +55,22 @@ def check_installation():
         return False
 
 def update_hosts_as_admin():
-    # Эта функция будет работать только на Windows
+    """Скачивает и устанавливает актуальный hosts. Возвращает True при успехе.
+    Даже при ошибке всегда пытается удалить созданные временные файлы."""
     if sys.platform != 'win32':
         print("Эта функция предназначена только для Windows.")
         return False
+
     url = "https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts"
+    temp_path: str | None = None
+    ps_script_path: str | None = None
     try:
         # Скачиваем и сохраняем содержимое во временный файл
         temp_fd, temp_path = tempfile.mkstemp()
         os.close(temp_fd)
 
         # Скачиваем контент
-        response = urllib.request.urlopen(url)
-        content = response.read()
+        content = urllib.request.urlopen(url).read()
 
         # Записываем во временный файл
         with open(temp_path, 'wb') as f:
@@ -63,30 +91,23 @@ netsh winsock reset
             ps_file.write(ps_content)
             ps_script_path = ps_file.name
 
-        # Запускаем PowerShell с правами администратора и ждем завершения
         command = [
-            "powershell",
-            "-WindowStyle", "Hidden",
-            "-Command",
+            "powershell", "-WindowStyle", "Hidden", "-Command",
             f'Start-Process powershell -Verb runAs -WindowStyle Hidden -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait'
         ]
         subprocess.run(command, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
-        # Очищаем временные файлы
-        try:
-            os.remove(temp_path)
-            os.remove(ps_script_path)
-        except:
-            pass
-
         # Даем время на обновление файла
-        import time
-        time.sleep(1)
-
+        import time as _t; _t.sleep(1)
         return True
     except Exception as e:
         print(f"Ошибка: {e}")
         return False
+    finally:
+        if temp_path:
+            _safe_remove(temp_path)
+        if ps_script_path:
+            _safe_remove(ps_script_path)
 
 def is_windows_dark_theme():
     # Эта функция будет работать только на Windows
@@ -471,7 +492,7 @@ if __name__ == "__main__":
 
     status = "Установлен" if check_installation() else "Не установлен"
     color = "#43b581" if status == "Установлен" else "#e06c75"
-    textinformer = QLabel(f"Обход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>")
+    textinformer = QLabel(f"ㅤОбход блокировок - <span style='color:{color}; font-weight:bold;'>{status}</span>ㅤ")
     textinformer.setTextFormat(Qt.TextFormat.RichText)
     textinformer.setAlignment(Qt.AlignmentFlag.AlignCenter)
     textinformer.setStyleSheet(main_window.styles["label"])
@@ -485,12 +506,18 @@ if __name__ == "__main__":
 
     # Группируем две надписи для компактного вида
     status_container = QWidget()
+    status_container.setObjectName("status_block")
     status_vbox = QVBoxLayout(status_container)
-    status_vbox.setContentsMargins(0, 0, 0, 0)
+    status_vbox.setContentsMargins(16, 12, 16, 12)  # inner padding for card feel
     status_vbox.setSpacing(4)
     status_vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
     status_vbox.addWidget(textinformer)
     status_vbox.addWidget(version_label)
+
+    # Apply initial block style depending on theme
+    _light_block = "background:#f3f4f7; border:1.5px solid #cfd4db; border-radius:12px;"
+    _dark_block = "background:#2d333b; border:1.5px solid #3c434d; border-radius:12px;"
+    status_container.setStyleSheet(_dark_block if main_window.dark_theme else _light_block)
 
     layout.addWidget(status_container)
 
@@ -510,22 +537,29 @@ if __name__ == "__main__":
     update_button.clicked.connect(lambda: check_for_updates())
 
     def restore_original_hosts():
+        """Восстанавливает стандартный hosts. Чистит временные файлы в любом случае."""
         if sys.platform != 'win32':
             print("Эта функция предназначена только для Windows.")
             return False
+
+        temp_path: str | None = None
+        ps_script_path: str | None = None
         try:
-            default_hosts = ('# Copyright (c) 1993-2009 Microsoft Corp.\n#\n'
-                             '# This is a sample HOSTS file used by Microsoft TCP/IP for Windows.\n#\n'
-                             '# This file contains the mappings of IP addresses to host names. Each\n'
-                             '# entry should be kept on an individual line. The IP address should\n'
-                             '# be placed in the first column followed by the corresponding host name.\n'
-                             '# The IP address and the host name should be separated by at least one\n# space.\n#\n'
-                             '# Additionally, comments (such as these) may be inserted on individual\n'
-                             '# lines or following the machine name denoted by a \'#\' symbol.\n#\n'
-                             '# For example:\n#\n#      102.54.94.97     rhino.acme.com          # source server\n'
-                             '#       38.25.63.10     x.acme.com              # x client host\n\n'
-                             '# localhost name resolution is handled within DNS itself.\n'
-                             '#   127.0.0.1       localhost\n#   ::1             localhost')
+            default_hosts = (
+                '# Copyright (c) 1993-2009 Microsoft Corp.\n#\n'
+                '# This is a sample HOSTS file used by Microsoft TCP/IP for Windows.\n#\n'
+                '# This file contains the mappings of IP addresses to host names. Each\n'
+                '# entry should be kept on an individual line. The IP address should\n'
+                '# be placed in the first column followed by the corresponding host name.\n'
+                '# The IP address and the host name should be separated by at least one\n# space.\n#\n'
+                '# Additionally, comments (such as these) may be inserted on individual\n'
+                '# lines or following the machine name denoted by a "#" symbol.\n#\n'
+                '# For example:\n#\n#      102.54.94.97     rhino.acme.com          # source server\n'
+                '#       38.25.63.10     x.acme.com              # x client host\n\n'
+                '# localhost name resolution is handled within DNS itself.\n'
+                '#   127.0.0.1       localhost\n#   ::1             localhost'
+            )
+
             with tempfile.NamedTemporaryFile('w', delete=False, suffix='.txt', encoding='utf-8') as temp_file:
                 temp_file.write(default_hosts)
                 temp_path = temp_file.name
@@ -544,20 +578,22 @@ netsh winsock reset
                 ps_file.write(ps_content)
                 ps_script_path = ps_file.name
 
-            command = ["powershell", "-WindowStyle", "Hidden", "-Command", f'Start-Process powershell -Verb runAs -WindowStyle Hidden -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait']
+            command = [
+                "powershell", "-WindowStyle", "Hidden", "-Command",
+                f'Start-Process powershell -Verb runAs -WindowStyle Hidden -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{ps_script_path}"\' -Wait'
+            ]
             subprocess.run(command, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
-            try:
-                os.remove(temp_path)
-                os.remove(ps_script_path)
-            except OSError:
-                pass
-            import time
-            time.sleep(1)
+            import time as _t; _t.sleep(1)
             return True
         except Exception as e:
             print(f"Ошибка: {e}")
             return False
+        finally:
+            if temp_path:
+                _safe_remove(temp_path)
+            if ps_script_path:
+                _safe_remove(ps_script_path)
 
     if main_window.stacked_widget:
         main_window.stacked_widget.addWidget(central_widget)
@@ -637,18 +673,43 @@ netsh winsock reset
         vbox.setContentsMargins(20, 20, 20, 20)
         fix_widget_size(message_widget)
 
+        # ---- Карточка сообщения ----
+        card_container = QWidget()
+        card_container.setObjectName("msg_card")
+        # Позволяем карточке расширяться при необходимости, но не более 600px
+        card_container.setMinimumWidth(220)
+        card_container.setMaximumWidth(600)
+        card_container.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+        card_layout = QVBoxLayout(card_container)
+        card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.setSpacing(16)
+        card_layout.setContentsMargins(32, 24, 32, 24)
+
+        light_style = "background:#f3f4f7; border:2.5px solid #cfd4db; border-radius:12px;"
+        dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
+        card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
+
         emoji = "✅" if success else "❌"
         emoji_label = QLabel(emoji)
         emoji_label.setObjectName("message_emoji")
         emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_label.setStyleSheet("font-size: 36px; margin-bottom: 8px;")
-        vbox.addWidget(emoji_label)
-        label = QLabel(msg)
-        label.setWordWrap(True)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vbox.addWidget(label)
+        emoji_label.setStyleSheet("font-size: 36px; margin-top: 8px; margin-bottom: 8px;")
+        card_layout.addWidget(emoji_label)
+
+        # Show each line of the incoming message on its own QLabel instead of using \n within a single label
+        for line in msg.split("\n"):
+            if not line.strip():
+                continue  # skip empty lines for cleaner look
+            lbl = QLabel(line)
+            lbl.setWordWrap(False)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            card_layout.addWidget(lbl)
+
         ok_btn = QPushButton("Окей")
-        vbox.addWidget(ok_btn)
+        card_layout.addWidget(ok_btn)
+
+        vbox.addWidget(card_container)
 
         if main_window.stacked_widget:
             main_window.stacked_widget.addWidget(message_widget)
@@ -668,7 +729,7 @@ netsh winsock reset
         ok_btn.clicked.connect(return_to_main)
 
     # --- Окно уведомления об обновлении ---
-    def show_update_available(version_str: str, dl_url: str):
+    def show_update_available(local_version: str, latest_version: str, dl_url: str):
         update_widget = QWidget()
         vbox = QVBoxLayout(update_widget)
         vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -676,22 +737,57 @@ netsh winsock reset
         vbox.setContentsMargins(20, 20, 20, 20)
         fix_widget_size(update_widget)
 
-        emoji_label = QLabel("❗")
-        emoji_label.setObjectName("message_emoji")
-        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_label.setStyleSheet("font-size: 36px; margin-bottom: 8px;")
-        vbox.addWidget(emoji_label)
+        # ---- Создаём карточку с рамкой ----
+        card_container = QWidget()
+        card_container.setObjectName("update_card")
+        # Динамическая ширина: от 240 до 600 px
+        card_container.setMinimumWidth(240)
+        card_container.setMaximumWidth(600)
+        card_container.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
 
-        label = QLabel(f"Доступна новая версия v{version_str}!")
+        card_layout = QVBoxLayout(card_container)
+        card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.setSpacing(16)
+        card_layout.setContentsMargins(32, 24, 32, 24)
+
+        light_style = "background:#f3f4f7; border:2.5px solid #cfd4db; border-radius:12px;"
+        dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
+        card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
+
+        # ---- Содержимое карточки ----
+        emoji_label = QLabel("❗")
+        emoji_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        emoji_label.setFixedHeight(48)
+        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        emoji_label.setObjectName("message_emoji")
+        emoji_label.setStyleSheet("font-size: 36px; margin-top: 8px; margin-bottom: 8px;")
+        card_layout.addWidget(emoji_label)
+
+        # ---- Версии без вложенных блоков ----
+        installed_lbl = QLabel(f"ㅤУстановленная версия: <b>v{local_version}</b>ㅤ")
+        installed_lbl.setTextFormat(Qt.TextFormat.RichText)
+        installed_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(installed_lbl)
+
+        latest_lbl = QLabel(f"Последняя версия: <b>v{latest_version}</b>")
+        latest_lbl.setTextFormat(Qt.TextFormat.RichText)
+        latest_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(latest_lbl)
+
+        # Заголовок о доступности обновления
+        label = QLabel("Доступна новая версия!")
         label.setWordWrap(True)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vbox.addWidget(label)
+        card_layout.addWidget(label)
 
         download_btn = QPushButton("Скачать")
-        vbox.addWidget(download_btn)
+        card_layout.addWidget(download_btn)
 
         ok_btn2 = QPushButton("Окей")
-        vbox.addWidget(ok_btn2)
+        card_layout.addWidget(ok_btn2)
+
+        # Добавляем карточку на основной макет
+        vbox.addWidget(card_container)
 
         if main_window.stacked_widget:
             main_window.stacked_widget.addWidget(update_widget)
@@ -708,6 +804,72 @@ netsh winsock reset
                 update_widget.deleteLater()
             animate_widget_switch(central_widget, on_finish=do_remove_update_widget)
         ok_btn2.clicked.connect(return_to_main2)
+
+    # --- Окно «версия актуальна» ---
+    def show_no_update_needed(local_version: str, latest_version: str):
+        done_widget = QWidget()
+        vbox = QVBoxLayout(done_widget)
+        vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.setSpacing(24)
+        vbox.setContentsMargins(20, 20, 20, 20)
+        fix_widget_size(done_widget)
+
+        card_container = QWidget()
+        card_container.setObjectName("update_card")
+        # Динамическая ширина: от 240 до 600 px
+        card_container.setMinimumWidth(240)
+        card_container.setMaximumWidth(600)
+        card_container.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+
+        card_layout = QVBoxLayout(card_container)
+        card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.setSpacing(16)
+        card_layout.setContentsMargins(32, 24, 32, 24)
+
+        light_style = "background:#f3f4f7; border:2.5px solid #cfd4db; border-radius:12px;"
+        dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
+        card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
+
+        emoji_label = QLabel("✅")
+        emoji_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        emoji_label.setFixedHeight(48)
+        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        emoji_label.setObjectName("message_emoji")
+        emoji_label.setStyleSheet("font-size: 36px;")
+        card_layout.addWidget(emoji_label)
+
+        installed_lbl = QLabel(f"ㅤУстановленная версия: <b>v{local_version}</b>ㅤ")
+        installed_lbl.setTextFormat(Qt.TextFormat.RichText)
+        installed_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(installed_lbl)
+
+        latest_lbl = QLabel(f"ㅤПоследняя версия: <b>v{latest_version}</b>ㅤ")
+        latest_lbl.setTextFormat(Qt.TextFormat.RichText)
+        latest_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(latest_lbl)
+
+        info_label = QLabel("ㅤУ вас установлена последняя версия.ㅤ")
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setWordWrap(False)
+        card_layout.addWidget(info_label)
+
+        ok_btn = QPushButton("Окей")
+        card_layout.addWidget(ok_btn)
+
+        vbox.addWidget(card_container)
+
+        if main_window.stacked_widget:
+            main_window.stacked_widget.addWidget(done_widget)
+        update_subwindow_styles()
+        animate_widget_switch(done_widget)
+
+        def return_to_main():
+            def do_remove():
+                if main_window.stacked_widget:
+                    main_window.stacked_widget.removeWidget(done_widget)
+                done_widget.deleteLater()
+            animate_widget_switch(central_widget, on_finish=do_remove)
+        ok_btn.clicked.connect(return_to_main)
 
     # --- Функция проверки обновлений ---
     def check_for_updates():
@@ -730,9 +892,9 @@ netsh winsock reset
                     return tuple(int(x) for x in v.strip("vV").split(".") if x.isdigit())
                 newer = _parse(remote_ver) > _parse(local_ver)
                 if newer:
-                    QTimer.singleShot(0, main_window, lambda v=remote_ver, u=download_url: show_update_available(v, u))
+                    QTimer.singleShot(0, main_window, lambda lv=local_ver, rv=remote_ver, u=download_url: show_update_available(lv, rv, u))
                 else:
-                    QTimer.singleShot(0, main_window, lambda: show_message_and_return("У вас установлена последняя версия.", success=True, animate=True))
+                    QTimer.singleShot(0, main_window, lambda lv=local_ver, rv=remote_ver: show_no_update_needed(lv, rv))
             except Exception as e:
                 err = f"Не удалось проверить обновления.\n{e}"
                 QTimer.singleShot(0, main_window, lambda m=err: show_message_and_return(m, success=False, animate=True))
@@ -752,22 +914,46 @@ netsh winsock reset
         vbox.setContentsMargins(20, 20, 20, 20)
         fix_widget_size(processing_widget)
 
+        # ---- Карточка ожидания ----
+        card_container = QWidget()
+        card_container.setObjectName("wait_card")
+        # Позволяем карточке расширяться при необходимости, но не более 600px
+        card_container.setMinimumWidth(220)
+        card_container.setMaximumWidth(600)
+        card_container.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+
+        card_layout = QVBoxLayout(card_container)
+        card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.setSpacing(16)
+        card_layout.setContentsMargins(32, 24, 32, 24)
+
+        light_style = "background:#f3f4f7; border:2.5px solid #cfd4db; border-radius:12px;"
+        dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
+        card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
+
         emoji_label = QLabel("⏳")
         emoji_label.setObjectName("message_emoji")
         emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_label.setStyleSheet("font-size: 36px; margin-bottom: 8px;")
-        vbox.addWidget(emoji_label)
+        emoji_label.setStyleSheet("font-size: 36px; margin-top: 8px; margin-bottom: 8px;")
+        card_layout.addWidget(emoji_label)
 
         if action == "install":
-            msg_text = "Установка обхода...\nПожалуйста, подождите."
+            msg_text = "Установка обхода...\nㅤПожалуйста, подождите.ㅤ"
         elif action == "update":
-            msg_text = "Обновление обхода...\nПожалуйста, подождите."
+            msg_text = "Обновление обхода...\nㅤПожалуйста, подождите.ㅤ"
         else:  # uninstall
-            msg_text = "Удаление обхода...\nПожалуйста, подождите."
-        label = QLabel(msg_text)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
+            msg_text = "Удаление обхода...\nㅤПожалуйста, подождите.ㅤ"
+
+        # Отображаем каждую строку текста отдельным QLabel, чтобы не использовать \n внутри одного блока
+        for line in msg_text.split("\n"):
+            if not line.strip():
+                continue  # пропускаем пустые строки
+            lbl = QLabel(line)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setWordWrap(False)
+            card_layout.addWidget(lbl)
+
+        vbox.addWidget(card_container)
 
         # Добавляем на стек и показываем
         if main_window.stacked_widget:
@@ -779,7 +965,7 @@ netsh winsock reset
         def update_status_label():
             current_status = "Установлен" if check_installation() else "Не установлен"
             current_color = "#43b581" if current_status == "Установлен" else "#e06c75"
-            textinformer.setText(f"Обход блокировок - <span style='color:{current_color}; font-weight:bold;'>{current_status}</span>")
+            textinformer.setText(f"ㅤОбход блокировок - <span style='color:{current_color}; font-weight:bold;'>{current_status}</span>ㅤ")
             # -------- NEW: refresh hosts version label --------
             update_version_label()
             # ---------------------------------------------------
@@ -789,19 +975,19 @@ netsh winsock reset
             # Сначала показываем итоговое сообщение с анимацией
             if ok_result:
                 if action == "install":
-                    success_msg = "Файл hosts успешно установлен!\nВозможно потребуется перезапустить браузер."
+                    success_msg = "Файл hosts успешно установлен!\nㅤВозможно потребуется перезапустить браузер.ㅤ"
                 elif action == "update":
-                    success_msg = "Файл hosts успешно обновлён!\nВозможно потребуется перезапустить браузер."
+                    success_msg = "Файл hosts успешно обновлён!\nㅤВозможно потребуется перезапустить браузер.ㅤ"
                 else:  # uninstall
-                    success_msg = "Файл hosts успешно восстановлен!\nВозможно потребуется перезапустить браузер."
+                    success_msg = "Файл hosts успешно восстановлен!\nㅤВозможно потребуется перезапустить браузер.ㅤ"
                 show_message_and_return(success_msg, success=True, animate=True)
             else:
                 if action == "install":
-                    error_msg = "Не удалось установить файл hosts.\nЗапустите программу от имени Администратора."
+                    error_msg = "Не удалось установить файл hosts.\nㅤЗапустите программу от имени Администратора.ㅤ"
                 elif action == "update":
-                    error_msg = "Не удалось обновить файл hosts.\nЗапустите программу от имени Администратора."
+                    error_msg = "Не удалось обновить файл hosts.\nㅤЗапустите программу от имени Администратора.ㅤ"
                 else:
-                    error_msg = "Не удалось восстановить файл hosts.\nЗапустите программу от имени Администратора."
+                    error_msg = "Не удалось восстановить файл hosts.\nㅤЗапустите программу от имени Администратора.ㅤ"
                 show_message_and_return(error_msg, success=False, animate=True)
 
             # После завершения анимации (≈400 мс) убираем виджет ожидания
@@ -864,6 +1050,10 @@ netsh winsock reset
                 theme_button.setStyleSheet(main_window.styles["theme"])
                 donate_button.setStyleSheet(main_window.styles["theme"])
                 about_button.setStyleSheet(main_window.styles["theme"])
+                # --- Update status block style on theme change ---
+                _light_block = "background:#f3f4f7; border:1.5px solid #cfd4db; border-radius:12px;"
+                _dark_block = "background:#2d333b; border:1.5px solid #3c434d; border-radius:12px;"
+                status_container.setStyleSheet(_dark_block if main_window.dark_theme else _light_block)
                 update_subwindow_styles()
                 fade_in()
 
@@ -879,25 +1069,58 @@ netsh winsock reset
     theme_button.clicked.connect(switch_theme)
 
     def show_donate_window():
+        # --- Re-designed Donate window ---
         donate_widget = QWidget()
-        vbox = QVBoxLayout(donate_widget)
-        vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vbox.setSpacing(20)
-        vbox.setContentsMargins(32, 24, 32, 24)
+        donate_layout = QVBoxLayout(donate_widget)
+        donate_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        donate_layout.setSpacing(24)
+        # Leave some breathing room around the content – values scale with window size for rudimentary adaptivity
+        donate_layout.setContentsMargins(20, 20, 20, 20)
+
         fix_widget_size(donate_widget)
 
-        label1 = QLabel("<span style='font-size:22px;'>Поддержать автора</span>")
-        label1.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vbox.addWidget(label1)
+        # The main content block (card look)
+        card_container = QWidget()
+        card_container.setObjectName("donate_card")
+        card_container.setMaximumWidth(380)  # Prevent the card from becoming too wide on large windows
+        card_container.setMinimumWidth(240)
+
+        card_layout = QVBoxLayout(card_container)
+        card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.setSpacing(16)
+        card_layout.setContentsMargins(32, 24, 32, 24)
+
+        title_lbl = QLabel("Поддержать автора")
+        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_lbl.setStyleSheet("font-size:22px; font-weight:600;")
+        card_layout.addWidget(title_lbl)
 
         card = "2202 2050 7215 4401"
-        label2 = QLabel(f"<span style='font-size:16px;'>💳 SBER: <b>{card}</b></span>")
-        label2.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vbox.addWidget(label2)
+        card_lbl = QLabel(f"ㅤSBER: <b>{card}</b>ㅤ")
+        card_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_lbl.setStyleSheet("font-size:16px;")
+        card_layout.addWidget(card_lbl)
+
         copy_btn = QPushButton("Скопировать номер карты")
-        vbox.addWidget(copy_btn)
-        back_btn = QPushButton("⟵ Назад в меню")
-        vbox.addWidget(back_btn)
+        card_layout.addWidget(copy_btn)
+
+        # Style card depending on theme
+        light_style = "background:#f3f4f7; border:2.5px solid #cfd4db; border-radius:12px;"
+        dark_style = "background:#2d333b; border:2.5px solid #3c434d; border-radius:12px;"
+        card_container.setStyleSheet(dark_style if main_window.dark_theme else light_style)
+
+        donate_layout.addWidget(card_container)
+
+        # Back link below the card (reuse styling from About window)
+        back_label = QLabel()
+        back_label.setObjectName("about_link")  # update_subwindow_styles will fill html & colours
+        back_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        back_label.setStyleSheet("margin-top:10px;")
+        back_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        donate_layout.addWidget(back_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # Apply button style only to copy button
+        copy_btn.setStyleSheet(main_window.styles["button1"])
 
         def copy_card():
             QApplication.clipboard().setText(card)
@@ -965,9 +1188,10 @@ netsh winsock reset
             animate_widget_switch(central_widget, on_finish=do_remove_donate_widget)
 
         copy_btn.clicked.connect(copy_card)
-        back_btn.clicked.connect(return_to_main)
+        back_label.linkActivated.connect(lambda _: return_to_main())
 
-        if main_window.stacked_widget: main_window.stacked_widget.addWidget(donate_widget)
+        if main_window.stacked_widget:
+            main_window.stacked_widget.addWidget(donate_widget)
         update_subwindow_styles()
         animate_widget_switch(donate_widget)
     donate_button.clicked.connect(show_donate_window)
@@ -990,7 +1214,7 @@ netsh winsock reset
         vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         vbox.setSpacing(8)
         vbox.setContentsMargins(12, 12, 12, 12)
-        
+
         icon_label = QLabel("<span style='font-size:32px;'>💡</span>")
         icon_label.setObjectName("message_emoji")
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1060,5 +1284,5 @@ netsh winsock reset
 
     main_window.show()
     on_main_window_resize()
-    
+
     sys.exit(app.exec())
