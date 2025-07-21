@@ -385,6 +385,10 @@ if __name__ == "__main__":
         return os.path.join(base_path, relative_path)
 
     # ------------------ NEW: SVG icon helpers ------------------
+    # Cache already-rendered & tinted icons to avoid expensive re-rendering on every
+    # button click / theme refresh. Keyed by (file_path, size_px, tint_hex).
+    ICON_CACHE: dict[tuple[str, int, str], QIcon] = {}
+
     def _tint_pixmap(pix: QPixmap, color: QColor) -> QPixmap:
         """Re-color a pixmap while preserving alpha."""
         if pix.isNull():
@@ -400,24 +404,36 @@ if __name__ == "__main__":
         return tinted
 
     def get_icon(file_name: str, size_px: int | None = None, *, force_dark: bool = False, force_white: bool = False) -> QIcon:
-        """Load an SVG from ./icons and tint it depending on current theme."""
+        """Load an SVG from ./icons and tint it depending on current theme.
+        Returned icons are cached for faster subsequent access."""
         path = resource_path(os.path.join("icons", file_name))
         # Render SVG directly at target size for crisp edges
         render_size = size_px or 48
-        renderer = QSvgRenderer(path)
-        pix = QPixmap(render_size, render_size)
-        pix.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pix)
-        renderer.render(painter)
-        painter.end()
+        # Determine tint colour first to form cache key
         if force_white:
             tint = QColor("#ffffff")
         elif force_dark or (not main_window.dark_theme):
             tint = QColor("#1a1a1a")
         else:
             tint = QColor("#ffffff")
+
+        cache_key = (path, render_size, tint.name())
+        cached_icon = ICON_CACHE.get(cache_key)
+        if cached_icon is not None:
+            return cached_icon
+
+        # Not cached -> render & store
+        renderer = QSvgRenderer(path)
+        pix = QPixmap(render_size, render_size)
+        pix.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pix)
+        renderer.render(painter)
+        painter.end()
+
         tinted = _tint_pixmap(pix, tint)
-        return QIcon(tinted)
+        icon = QIcon(tinted)
+        ICON_CACHE[cache_key] = icon
+        return icon
 
     def create_icon_label(file_name: str, size: int = 48) -> QLabel:
         """Return QLabel with a tinted icon pixmap."""
