@@ -10,15 +10,15 @@ hosts_add = """
 54.36.104.75 cs2c9f.4pda.ws
 
 # TRAE
-176.99.11.77 trae.ai
-176.99.11.77 www.trae.ai
-176.99.11.77 api.trae.ai
-176.99.11.77 lf-cdn.trae.ai
-176.99.11.77 lf-headquarters-speed.yhgfb-cn-static.com
-176.99.11.77 sf16-short-va.bytedapm.com
-176.99.11.77 maliva-mcs.byteoversea.com
-176.99.11.77 mon-va.byteoversea.com
-176.99.11.77 mssdk.bytedance.com
-176.99.11.77 If-c-flwb.bytetos.com
-176.99.11.77 unpkg.com
+80.78.247.254 trae.ai
+80.78.247.254 www.trae.ai
+80.78.247.254 api.trae.ai
+80.78.247.254 lf-cdn.trae.ai
+80.78.247.254 lf-headquarters-speed.yhgfb-cn-static.com
+80.78.247.254 sf16-short-va.bytedapm.com
+80.78.247.254 maliva-mcs.byteoversea.com
+80.78.247.254 mon-va.byteoversea.com
+80.78.247.254 mssdk.bytedance.com
+80.78.247.254 If-c-flwb.bytetos.com
+80.78.247.254 unpkg.com
 """
