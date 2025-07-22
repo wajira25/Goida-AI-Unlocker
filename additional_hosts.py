@@ -19,4 +19,5 @@ hosts_add = """
 176.99.11.77 If-c-flwb.bytetos.com
 176.99.11.77 If-cdn.trae.ai
 176.99.11.77 If-headquarters-speed.yhgfb-cn-static.com
+176.99.11.77 sf16-short-va.bytedapm.com
 """
