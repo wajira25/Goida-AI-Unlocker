@@ -10,6 +10,8 @@ hosts_add = """
 54.36.104.75 cs2c9f.4pda.ws
 
 # TRAE
+80.78.247.254 trae.ai
+80.78.247.254 www.trae.ai
 80.78.247.254 api.trae.ai
 80.78.247.254 lf-cdn.trae.ai
 80.78.247.254 lf-headquarters-speed.yhgfb-cn-static.com
