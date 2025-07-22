@@ -16,6 +16,18 @@ except ImportError:
     sys.exit(1)
 from typing import Optional
 import json
+import re  # NEW: regex for parsing versions
+
+# ---------------- additional hosts configs ----------------
+try:
+    from additional_hosts import hosts_add as ADDITIONAL_HOSTS, version_add as ADDITIONAL_VERSION
+except Exception:
+    ADDITIONAL_HOSTS = ""
+    ADDITIONAL_VERSION = "0.0.0"
+
+# Raw URL to fetch latest additional hosts definition for update checks
+ADDITIONAL_HOSTS_URL = "https://raw.githubusercontent.com/AvenCores/Goida-AI-Unlocker/refs/heads/main/additional_hosts.py"
+# ----------------------------------------------------------
 
 # Placeholder, real version will be loaded from app_info.json at runtime
 APP_VERSION = "0.0.0"
@@ -70,11 +82,16 @@ def update_hosts_as_admin():
         temp_fd, temp_path = tempfile.mkstemp()
         os.close(temp_fd)
 
-        # Скачиваем контент
-        content = urllib.request.urlopen(url).read()
+        # Скачиваем контент основного hosts-списка и декодируем в текст
+        content = urllib.request.urlopen(url).read().decode("utf-8", errors="ignore")
 
-        # Записываем во временный файл
-        with open(temp_path, 'wb') as f:
+        # --- Добавляем блок с дополнительными записями и меткой версии ---
+        if ADDITIONAL_HOSTS:
+            extra_block = f"\n# additional_hosts_version {ADDITIONAL_VERSION}\n{ADDITIONAL_HOSTS.strip()}\n"
+            content += extra_block
+
+        # Записываем во временный файл (уже обновлённый контент)
+        with open(temp_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
         # Создаём PowerShell-скрипт для копирования
@@ -339,6 +356,30 @@ def _extract_update_line(content: bytes) -> str:
         return ""
 
 
+# ---------- NEW: helpers for additional hosts version ----------
+def _extract_additional_version(text: str) -> str:
+    """Return version string from line '# additional_hosts_version X'."""
+    for line in text.splitlines():
+        if line.lower().startswith("# additional_hosts_version"):
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                return parts[-1]
+    return ""
+
+
+def _get_remote_add_version() -> str:
+    """Fetch additional_hosts.py from GitHub and extract its version_add value."""
+    import time as _t
+    try:
+        raw_txt = urllib.request.urlopen(f"{ADDITIONAL_HOSTS_URL}?t={int(_t.time())}", timeout=10).read().decode("utf-8", errors="ignore")
+        import re as _re
+        m = _re.search(r'version_add\s*=\s*["\']([\d\.]+)["\']', raw_txt)
+        return m.group(1) if m else ""
+    except Exception:
+        return ""
+# --------------------------------------------------------------
+
+
 def get_hosts_version_status() -> tuple[str, str]:
     """Return a tuple (status_word, color) describing hosts version state."""
     if sys.platform != "win32":
@@ -351,14 +392,22 @@ def get_hosts_version_status() -> tuple[str, str]:
 
     try:
         with open(hosts_path, "rb") as lf:
-            local_line = _extract_update_line(lf.read())
+            raw_content = lf.read()
+            local_line = _extract_update_line(raw_content)
+            text_content = raw_content.decode("utf-8", errors="ignore")
+            local_add_ver = _extract_additional_version(text_content)
 
         import time as _t
         remote_url = f"https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts?t={int(_t.time())}"
         remote_line = _extract_update_line(urllib.request.urlopen(remote_url, timeout=10).read())
+        remote_add_ver = _get_remote_add_version()
 
-        # Hosts is up-to-date if the update line matches the remote one
-        if local_line == remote_line and local_line.startswith("#"):
+        # Up-to-date only if both the main hosts list AND additional hosts versions match
+        up_to_date = (
+            local_line == remote_line and local_line.startswith("#") and
+            remote_add_ver and (local_add_ver == remote_add_ver)
+        )
+        if up_to_date:
             return "Актуально", "#43b581"
         else:
             return "Устарело", "#e06c75"
