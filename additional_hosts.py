@@ -11,7 +11,6 @@ hosts_add = """
 
 # TRAE
 80.78.247.254 trae.ai
-80.78.247.254 www.trae.ai
 80.78.247.254 api.trae.ai
 80.78.247.254 lf-cdn.trae.ai
 80.78.247.254 lf-headquarters-speed.yhgfb-cn-static.com
@@ -20,5 +19,4 @@ hosts_add = """
 80.78.247.254 mon-va.byteoversea.com
 80.78.247.254 mssdk.bytedance.com
 80.78.247.254 If-c-flwb.bytetos.com
-80.78.247.254 unpkg.com
 """
