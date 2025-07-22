@@ -10,13 +10,14 @@ hosts_add = """
 54.36.104.75 cs2c9f.4pda.ws
 
 # TRAE
-80.78.247.254 trae.ai
-80.78.247.254 api.trae.ai
-80.78.247.254 lf-cdn.trae.ai
-80.78.247.254 lf-headquarters-speed.yhgfb-cn-static.com
-80.78.247.254 sf16-short-va.bytedapm.com
-80.78.247.254 maliva-mcs.byteoversea.com
-80.78.247.254 mon-va.byteoversea.com
-80.78.247.254 mssdk.bytedance.com
-80.78.247.254 If-c-flwb.bytetos.com
+204.12.192.222 trae.ai
+204.12.192.222 www.trae.ai
+204.12.192.222 api.trae.ai
+204.12.192.222 lf-cdn.trae.ai
+204.12.192.222 lf-headquarters-speed.yhgfb-cn-static.com
+204.12.192.222 sf16-short-va.bytedapm.com
+204.12.192.222 maliva-mcs.byteoversea.com
+204.12.192.222 mon-va.byteoversea.com
+204.12.192.222 mssdk.bytedance.com
+204.12.192.222 If-c-flwb.bytetos.com
 """
