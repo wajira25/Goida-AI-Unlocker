@@ -17,6 +17,7 @@ except ImportError:
 from typing import Optional
 import json
 import re  # NEW: regex for parsing versions
+import textwrap as _tw # NEW: for dedent
 
 # ---------------- additional hosts configs ----------------
 try:
@@ -55,6 +56,25 @@ def _safe_remove(path: str, retries: int = 3, delay: float = 0.3):
         pass
 # ---------------------------------------------------------------------------
 
+# ----------- NEW: fetch remote additional hosts -------------------
+def _fetch_remote_additional() -> tuple[str, str]:
+    """Return (version, hosts_add) fetched from remote additional_hosts.py.
+    On failure returns ("", "")."""
+    import time as _t
+    try:
+        raw_txt = urllib.request.urlopen(f"{ADDITIONAL_HOSTS_URL}?t={int(_t.time())}", timeout=10).read().decode("utf-8", errors="ignore")
+        import re as _re, textwrap as _tw
+        ver_match = _re.search(r'version_add\s*=\s*["\']([^"\']+)["\']', raw_txt)
+        hosts_match = _re.search(r'hosts_add\s*=\s*"""(.*?)"""', raw_txt, _re.S)
+        version = ver_match.group(1) if ver_match else ""
+        hosts_block = hosts_match.group(1).strip() if hosts_match else ""
+        # Normalise line indentation
+        hosts_block = _tw.dedent(hosts_block)
+        return version, hosts_block
+    except Exception:
+        return "", ""
+# -----------------------------------------------------------------
+
 def check_installation():
     # Эта функция будет работать только на Windows
     if sys.platform != 'win32':
@@ -86,8 +106,9 @@ def update_hosts_as_admin():
         content = urllib.request.urlopen(url).read().decode("utf-8", errors="ignore")
 
         # --- Добавляем блок с дополнительными записями и меткой версии ---
-        if ADDITIONAL_HOSTS:
-            extra_block = f"\n# additional_hosts_version {ADDITIONAL_VERSION}\n{ADDITIONAL_HOSTS.strip()}\n"
+        add_ver, add_hosts_remote = _fetch_remote_additional()
+        if add_hosts_remote:
+            extra_block = f"\n# additional_hosts_version {add_ver}\n{add_hosts_remote.strip()}\n"
             content += extra_block
 
         # Записываем во временный файл (уже обновлённый контент)
@@ -368,15 +389,9 @@ def _extract_additional_version(text: str) -> str:
 
 
 def _get_remote_add_version() -> str:
-    """Fetch additional_hosts.py from GitHub and extract its version_add value."""
-    import time as _t
-    try:
-        raw_txt = urllib.request.urlopen(f"{ADDITIONAL_HOSTS_URL}?t={int(_t.time())}", timeout=10).read().decode("utf-8", errors="ignore")
-        import re as _re
-        m = _re.search(r'version_add\s*=\s*["\']([\d\.]+)["\']', raw_txt)
-        return m.group(1) if m else ""
-    except Exception:
-        return ""
+    """Return remote version_add (wrapper around _fetch_remote_additional)."""
+    ver, _ = _fetch_remote_additional()
+    return ver
 # --------------------------------------------------------------
 
 
