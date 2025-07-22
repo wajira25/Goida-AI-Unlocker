@@ -13,4 +13,6 @@ hosts_add = """
 176.99.11.77 trae.ai
 176.99.11.77 maliva-mcs.byteoversea.com
 176.99.11.77 mssdk.bytedance.com
+176.99.11.77 mon-va.byteoversea.com
+176.99.11.77 mssdk.bytedance.com
 """
