@@ -11,13 +11,14 @@ hosts_add = """
 
 # TRAE
 176.99.11.77 trae.ai
+176.99.11.77 www.trae.ai
 176.99.11.77 api.trae.ai
+176.99.11.77 lf-cdn.trae.ai
+176.99.11.77 lf-headquarters-speed.yhgfb-cn-static.com
+176.99.11.77 sf16-short-va.bytedapm.com
 176.99.11.77 maliva-mcs.byteoversea.com
-176.99.11.77 mssdk.bytedance.com
 176.99.11.77 mon-va.byteoversea.com
 176.99.11.77 mssdk.bytedance.com
 176.99.11.77 If-c-flwb.bytetos.com
-176.99.11.77 If-cdn.trae.ai
-176.99.11.77 If-headquarters-speed.yhgfb-cn-static.com
-176.99.11.77 sf16-short-va.bytedapm.com
+176.99.11.77 unpkg.com
 """
