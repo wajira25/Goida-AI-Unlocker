@@ -8,4 +8,7 @@ hosts_add = """
 217.182.194.171 cs4a0d.4pda.ws
 141.94.143.110 cs3b2e.4pda.ws
 54.36.104.75 cs2c9f.4pda.ws
+
+# TRAE
+176.99.11.77 trae.ai
 """
