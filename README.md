@@ -40,6 +40,22 @@
 
 ---
 
+# 🎦 Видео гайд по установке
+
+![maxresdefault](https://github.com/user-attachments/assets/fd6a3c9f-ef37-4b28-9590-16516376d740)
+
+<div align="center">
+
+[**Смотреть на YouTube**](https://youtu.be/4ByAuSJfzv8)  
+
+[**Смотреть на Dzen**](https://dzen.ru/video/watch/687bd6192a6ef63c8d76ed0b)  
+
+[**Смотреть на VK Video**](https://vk.com/video-200297343_456239487)
+
+</div>
+
+---
+
 ## 📸 Скриншот интерфейса
 <div align="center">
   <img width="640" height="640" alt="Goida_AI_Unlocker_MRE6ut72zG" src="https://github.com/user-attachments/assets/678bce0c-f826-4b1d-88ee-d8557bd6616d" />
