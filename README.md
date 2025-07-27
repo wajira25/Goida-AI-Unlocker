@@ -42,7 +42,7 @@
 
 # 🎦 Видео гайд по установке
 
-![maxresdefault](https://github.com/user-attachments/assets/fd6a3c9f-ef37-4b28-9590-16516376d740)
+<img width="1280" height="720" alt="maxresdefault" src="https://github.com/user-attachments/assets/dab3d1db-8aed-42ee-a44f-76c1234788be" />
 
 <div align="center">
 
