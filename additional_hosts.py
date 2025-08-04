@@ -1,8 +1,7 @@
-version_add = "1.0.8"
+version_add = "1.0.9"
 
 hosts_add = """
 # 4PDA
-185.246.223.127 4pda.to
 45.81.252.72 cs11a0a.4pda.ws
 185.234.59.26 cs7f6c.4pda.ws
 217.182.194.171 cs4a0d.4pda.ws
