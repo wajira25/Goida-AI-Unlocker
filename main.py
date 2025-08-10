@@ -8,7 +8,7 @@ import atexit
 import time as _time  # for retry sleeps
 try:
     from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget, QSizePolicy
-    from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QSize, QObject
+    from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QSize
     from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
     from PySide6.QtSvg import QSvgRenderer
 except ImportError:
@@ -19,12 +19,6 @@ import json
 import textwrap as _tw # NEW: for dedent
 
 # ---------------- additional hosts configs ----------------
-try:
-    from additional_hosts import hosts_add as ADDITIONAL_HOSTS, version_add as ADDITIONAL_VERSION
-except Exception:
-    ADDITIONAL_HOSTS = ""
-    ADDITIONAL_VERSION = "0.0.0"
-
 # Raw URL to fetch latest additional hosts definition for update checks
 ADDITIONAL_HOSTS_URL = "https://raw.githubusercontent.com/AvenCores/Goida-AI-Unlocker/refs/heads/main/additional_hosts.py"
 # ----------------------------------------------------------
@@ -341,10 +335,8 @@ class CustomWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.is_animating = False
-        self.original_size = None
         self.stacked_widget: Optional[QStackedWidget] = None
         self._current_animation: Optional[QPropertyAnimation] = None
-        self.original_geometry: Optional[QRect] = None
         self.dark_theme = False
         self.styles = {}
         self.title_bar: Optional[QWidget] = None
@@ -486,8 +478,6 @@ if __name__ == "__main__":
     app.setStyleSheet("QPushButton:focus { outline: none; }")
 
     # --- Установка иконки приложения ---
-    import sys
-    import os
     def resource_path(relative_path):
         """ Get absolute path to resource, works for dev and for PyInstaller """
         try:
@@ -601,7 +591,6 @@ if __name__ == "__main__":
 
     main_window = CustomWindow()
     main_window.stacked_widget = QStackedWidget()
-    main_window.original_geometry = None
     main_window.setWindowTitle("Goida AI Unlocker")
     main_window.setWindowFlags(Qt.WindowType.FramelessWindowHint)
     main_window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
