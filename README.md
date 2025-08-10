@@ -44,6 +44,8 @@
 
 [**Смотреть на VK Video**](https://vk.com/video-200297343_456239487)
 
+[**Смотреть в Telegram**](https://t.me/avencoreschat/83499)
+
 </div>
 
 ---
