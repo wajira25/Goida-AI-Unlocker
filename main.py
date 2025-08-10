@@ -16,7 +16,6 @@ except ImportError:
     sys.exit(1)
 from typing import Optional
 import json
-import re  # NEW: regex for parsing versions
 import textwrap as _tw # NEW: for dedent
 
 # ---------------- additional hosts configs ----------------
@@ -397,6 +396,58 @@ def _get_remote_add_version() -> str:
 
 def get_hosts_version_status() -> tuple[str, str]:
     """Return a tuple (status_word, color) describing hosts version state."""
+    # --- BEGIN: short-lived cache for remote checks ---
+    # Cache remote main hosts line and additional version to avoid frequent network IO
+    # in quick successions (e.g., multiple UI-triggered checks). TTL ~60s is enough.
+    global _REMOTE_CACHE_TTL, _remote_main_line_cache, _remote_add_ver_cache
+    try:
+        _REMOTE_CACHE_TTL
+    except NameError:
+        _REMOTE_CACHE_TTL = 60.0
+    try:
+        _remote_main_line_cache
+    except NameError:
+        _remote_main_line_cache = None  # type: ignore[assignment]
+    try:
+        _remote_add_ver_cache
+    except NameError:
+        _remote_add_ver_cache = None  # type: ignore[assignment]
+
+    def _get_remote_main_hosts_line_cached() -> str:
+        global _remote_main_line_cache
+        now = _time.time()
+        if (
+            _remote_main_line_cache is not None
+            and isinstance(_remote_main_line_cache, tuple)
+            and now - _remote_main_line_cache[0] < _REMOTE_CACHE_TTL
+        ):
+            return _remote_main_line_cache[1]
+        import time as _t
+        remote_url = f"https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts?t={int(_t.time())}"
+        try:
+            line = _extract_update_line(urllib.request.urlopen(remote_url, timeout=10).read())
+        except Exception:
+            line = ""
+        _remote_main_line_cache = (now, line)
+        return line
+
+    def _get_remote_add_version_cached() -> str:
+        global _remote_add_ver_cache
+        now = _time.time()
+        if (
+            _remote_add_ver_cache is not None
+            and isinstance(_remote_add_ver_cache, tuple)
+            and now - _remote_add_ver_cache[0] < _REMOTE_CACHE_TTL
+        ):
+            return _remote_add_ver_cache[1]
+        try:
+            ver = _get_remote_add_version()
+        except Exception:
+            ver = ""
+        _remote_add_ver_cache = (now, ver)
+        return ver
+    # --- END: short-lived cache for remote checks ---
+
     if sys.platform != "win32":
         return "Не установлен", "#e06c75"
 
@@ -412,10 +463,8 @@ def get_hosts_version_status() -> tuple[str, str]:
             text_content = raw_content.decode("utf-8", errors="ignore")
             local_add_ver = _extract_additional_version(text_content)
 
-        import time as _t
-        remote_url = f"https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts?t={int(_t.time())}"
-        remote_line = _extract_update_line(urllib.request.urlopen(remote_url, timeout=10).read())
-        remote_add_ver = _get_remote_add_version()
+        remote_line = _get_remote_main_hosts_line_cached()
+        remote_add_ver = _get_remote_add_version_cached()
 
         # Up-to-date only if both the main hosts list AND additional hosts versions match
         up_to_date = (
@@ -452,6 +501,8 @@ if __name__ == "__main__":
     # Cache already-rendered & tinted icons to avoid expensive re-rendering on every
     # button click / theme refresh. Keyed by (file_path, size_px, tint_hex).
     ICON_CACHE: dict[tuple[str, int, str], QIcon] = {}
+    # Cache QSvgRenderer per source path to avoid re-parsing the SVG data each time
+    RENDERER_CACHE: dict[str, QSvgRenderer] = {}
 
     def _tint_pixmap(pix: QPixmap, color: QColor) -> QPixmap:
         """Re-color a pixmap while preserving alpha."""
@@ -487,7 +538,10 @@ if __name__ == "__main__":
             return cached_icon
 
         # Not cached -> render & store
-        renderer = QSvgRenderer(path)
+        renderer = RENDERER_CACHE.get(path)
+        if renderer is None:
+            renderer = QSvgRenderer(path)
+            RENDERER_CACHE[path] = renderer
         pix = QPixmap(render_size, render_size)
         pix.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pix)
@@ -513,22 +567,23 @@ if __name__ == "__main__":
         """Re-tint all buttons/labels that carry 'icon_name' property."""
         if root_widget is None:
             root_widget = main_window
-        classes = (QPushButton, QLabel)
-        for child in root_widget.findChildren(QObject):
-            if not isinstance(child, classes):
-                continue
-            name = child.property("icon_name")
+        # Update QPushButton icons
+        for btn in root_widget.findChildren(QPushButton):
+            name = btn.property("icon_name")
             if not name:
                 continue
-            if isinstance(child, QPushButton):
-                force_dark = bool(child.property("icon_force_dark"))
-                force_white = bool(child.property("icon_force_white"))
-                child.setIcon(get_icon(name, child.iconSize().width(), force_dark=force_dark, force_white=force_white))
-            else:  # QLabel
-                size = child.pixmap().width() if child.pixmap() else 32
-                force_dark = bool(child.property("icon_force_dark"))
-                force_white = bool(child.property("icon_force_white"))
-                child.setPixmap(get_icon(name, size, force_dark=force_dark, force_white=force_white).pixmap(size, size))
+            force_dark = bool(btn.property("icon_force_dark"))
+            force_white = bool(btn.property("icon_force_white"))
+            btn.setIcon(get_icon(name, btn.iconSize().width(), force_dark=force_dark, force_white=force_white))
+        # Update QLabel icons
+        for lbl in root_widget.findChildren(QLabel):
+            name = lbl.property("icon_name")
+            if not name:
+                continue
+            size = lbl.pixmap().width() if lbl.pixmap() else 32
+            force_dark = bool(lbl.property("icon_force_dark"))
+            force_white = bool(lbl.property("icon_force_white"))
+            lbl.setPixmap(get_icon(name, size, force_dark=force_dark, force_white=force_white).pixmap(size, size))
         # function ends implicitly
     # ------------------------------------------------------------
 
@@ -1204,6 +1259,8 @@ netsh winsock reset
                 QTimer.singleShot(time_interval, lambda: fade_out(step - 1.0 / animation_steps))
             else:
                 main_window.setWindowOpacity(0)
+                # Temporarily disable updates to reduce overdraw while changing many styles
+                main_window.setUpdatesEnabled(False)
                 main_window.dark_theme = not main_window.dark_theme
                 main_window.styles = get_stylesheet(main_window.dark_theme)
                 main_window.setStyleSheet(main_window.styles["main"])
@@ -1226,6 +1283,8 @@ netsh winsock reset
                 update_subwindow_styles()
                 # --- NEW: refresh icons tint ---
                 refresh_icons()
+                # Re-enable updates now that styles are applied
+                main_window.setUpdatesEnabled(True)
                 fade_in()
 
         def fade_in(step=0.0):
