@@ -7,9 +7,9 @@ import threading  # Added for running blocking tasks in background
 import atexit
 import time as _time  # for retry sleeps
 try:
-    from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget, QSizePolicy
+    from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QStackedWidget, QSizePolicy, QToolButton, QAbstractButton, QGridLayout
     from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QSize
-    from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
+    from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFontMetrics
     from PySide6.QtSvg import QSvgRenderer
 except ImportError:
     print("Ошибка: библиотека PySide6 не установлена. Пожалуйста, установите ее командой: pip install PySide6")
@@ -220,7 +220,7 @@ def get_stylesheet(dark):
                 }
             """,
             "theme": """
-                QPushButton {
+                QPushButton, QToolButton {
                     background: #e6e8ec;
                     color: #222;
                     border: 1.5px solid #cfd4db;
@@ -229,13 +229,33 @@ def get_stylesheet(dark):
                     font-size: 15px;
                     font-weight: 500;
                 }
-                QPushButton:hover {
+                QPushButton:hover, QToolButton:hover {
                     /* slightly darker on hover to simulate dimming */
+                    background: #d1d4d8;
+                }
+                QPushButton:pressed, QToolButton:pressed {
+                    background: #bfc3c9;
+                    padding: 12px 0 8px 0;
+                }
+            """,
+            "theme_center_small": """
+                QPushButton {
+                    background: #e6e8ec;
+                    color: #222;
+                    border: 1.5px solid #cfd4db;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    min-width: 140px;
+                    text-align: center;
+                }
+                QPushButton:hover {
                     background: #d1d4d8;
                 }
                 QPushButton:pressed {
                     background: #bfc3c9;
-                    padding: 12px 0 8px 0;
+                    padding: 10px 16px 6px 16px;
                 }
             """,
             "about_title_style": "font-size:25px; margin-bottom:4px;",
@@ -308,7 +328,7 @@ def get_stylesheet(dark):
                 }
             """,
             "theme": """
-                QPushButton {
+                QPushButton, QToolButton {
                     background: #f3f4f7;
                     color: #1a1a1a;
                     border: 1.5px solid #cfd4db;
@@ -317,12 +337,32 @@ def get_stylesheet(dark):
                     font-size: 15px;
                     font-weight: 500;
                 }
+                QPushButton:hover, QToolButton:hover {
+                    background: #e6e8ec;
+                }
+                QPushButton:pressed, QToolButton:pressed {
+                    background: #d1d5db;
+                    padding: 12px 0 8px 0;
+                }
+            """,
+            "theme_center_small": """
+                QPushButton {
+                    background: #f3f4f7;
+                    color: #1a1a1a;
+                    border: 1.5px solid #cfd4db;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    min-width: 140px;
+                    text-align: center;
+                }
                 QPushButton:hover {
                     background: #e6e8ec;
                 }
                 QPushButton:pressed {
                     background: #d1d5db;
-                    padding: 12px 0 8px 0;
+                    padding: 10px 16px 6px 16px;
                 }
             """,
             "about_title_style": "font-size:25px; margin-bottom:4px;",
@@ -557,8 +597,8 @@ if __name__ == "__main__":
         """Re-tint all buttons/labels that carry 'icon_name' property."""
         if root_widget is None:
             root_widget = main_window
-        # Update QPushButton icons
-        for btn in root_widget.findChildren(QPushButton):
+        # Update button icons (QPushButton/QToolButton)
+        for btn in root_widget.findChildren(QAbstractButton):
             name = btn.property("icon_name")
             if not name:
                 continue
@@ -1330,13 +1370,11 @@ netsh winsock reset
 
         donate_layout.addWidget(card_container)
 
-        # Back link below the card (reuse styling from About window)
-        back_label = QLabel()
-        back_label.setObjectName("about_link")  # update_subwindow_styles will fill html & colours
-        back_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        back_label.setStyleSheet("margin-top:10px;")
-        back_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        donate_layout.addWidget(back_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        # Back button below the card
+        back_button = QPushButton("  В меню  ")
+        back_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        back_button.setStyleSheet(main_window.styles["theme"])
+        donate_layout.addWidget(back_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Apply button style only to copy button
         copy_btn.setStyleSheet(main_window.styles["button1"])
@@ -1407,7 +1445,7 @@ netsh winsock reset
             animate_widget_switch(central_widget, on_finish=do_remove_donate_widget)
 
         copy_btn.clicked.connect(copy_card)
-        back_label.linkActivated.connect(lambda _: return_to_main())
+        back_button.clicked.connect(return_to_main)
 
         if main_window.stacked_widget:
             main_window.stacked_widget.addWidget(donate_widget)
@@ -1447,11 +1485,24 @@ netsh winsock reset
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         vbox.addWidget(info)
 
-        github_btn = QPushButton(" GitHub")
-        github_btn.setIcon(get_icon("info.svg", 18, force_dark=True))
-        github_btn.setIconSize(QSize(18, 18))
+        github_btn = QToolButton()
+        github_btn.setText("GitHub")
+        github_btn.setIcon(get_icon("info.svg", 24, force_dark=True))
+        github_btn.setIconSize(QSize(24, 24))
+        github_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        github_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        github_btn.setStyleSheet(main_window.styles["theme"] + "\nQToolButton { font-size:13px; padding:6px 12px; }")  # compact text under icon
+        github_btn.setProperty("icon_name", "info.svg")
+        github_btn.setProperty("icon_force_dark", True)
         github_btn.clicked.connect(lambda: os.startfile("https://github.com/AvenCores/Goida-AI-Unlocker"))
-        vbox.addWidget(github_btn)
+        # Grid for buttons in multiple rows
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(8)
+        grid.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        # Put GitHub first
+        grid.addWidget(github_btn, 0, 0, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         social_buttons = [
             ("Telegram", "https://t.me/avencoresyt", "send.svg"),
@@ -1460,32 +1511,63 @@ netsh winsock reset
             ("Dzen", "https://dzen.ru/avencores", "book-open.svg"),
             ("VK", "https://vk.com/avencoresvk", "users.svg"),
         ]
+        about_buttons = [github_btn]
+        col_count = 3  # number of columns in the grid
+        row = 0
+        col = 1  # start after GitHub in (0,0)
         for label, url, icon_file in social_buttons:
-            btn = QPushButton(" " + label)
-            btn.setIcon(get_icon(icon_file, 18, force_dark=True))
-            btn.setIconSize(QSize(18, 18))
+            btn = QToolButton()
+            btn.setText(label)
+            btn.setIcon(get_icon(icon_file, 24, force_dark=True))
+            btn.setIconSize(QSize(24, 24))
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
             btn.setProperty("icon_name", icon_file)
             btn.setProperty("icon_force_dark", True)
-            btn.setStyleSheet("font-size:13px; min-width:120px; margin-bottom:2px;")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setStyleSheet(main_window.styles["theme"] + "\nQToolButton { font-size:13px; padding:6px 12px; }")  # compact text under icon
             btn.clicked.connect(lambda checked=False, u=url: os.startfile(u))
-            vbox.addWidget(btn)
+            grid.addWidget(btn, row, col, alignment=Qt.AlignmentFlag.AlignHCenter)
+            about_buttons.append(btn)
+            col += 1
+            if col >= col_count:
+                row += 1
+                col = 0
 
-        back_label = QLabel()
-        back_label.setObjectName("about_link")
-        back_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        back_label.setStyleSheet("margin-top:10px;")
-        back_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        vbox.addLayout(grid)
+        # Match Donate's 24px gap (About vbox spacing is 8px → add 16px extra)
+        vbox.addSpacing(16)
+
+        # Defer width equalization until styles are applied
+        def _equalize_about_button_widths():
+            if not about_buttons:
+                return
+            # Compute required width per button using font metrics (text or icon, whichever wider)
+            def _req_w(b):
+                fm = b.fontMetrics() if hasattr(b, "fontMetrics") else QFontMetrics(b.font())
+                text_w = fm.horizontalAdvance(b.text())
+                icon_w = b.iconSize().width() if hasattr(b, "iconSize") else 24
+                base = max(text_w, icon_w)
+                return base + 24  # horizontal padding allowance
+            ref_w = max(max(b.sizeHint().width(), _req_w(b)) for b in about_buttons)
+            for b in about_buttons:
+                b.setFixedWidth(ref_w)
+
+        back_button = QPushButton("  В меню  ")
+        back_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        back_button.setStyleSheet(main_window.styles["theme"])
 
         def return_to_main():
             def do_remove_about_widget():
                 if main_window.stacked_widget: main_window.stacked_widget.removeWidget(about_widget)
                 about_widget.deleteLater()
             animate_widget_switch(central_widget, on_finish=do_remove_about_widget)
-        back_label.linkActivated.connect(lambda _: return_to_main())
-        vbox.addWidget(back_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        back_button.clicked.connect(return_to_main)
+        vbox.addWidget(back_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
         if main_window.stacked_widget: main_window.stacked_widget.addWidget(about_widget)
         update_subwindow_styles()
+        # Equalize widths after styles are applied
+        QTimer.singleShot(0, lambda: _equalize_about_button_widths())
         animate_widget_switch(about_widget)
     about_button.clicked.connect(show_about_window)
 
