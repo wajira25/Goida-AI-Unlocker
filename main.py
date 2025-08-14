@@ -1487,21 +1487,36 @@ netsh winsock reset
 
         github_btn = QToolButton()
         github_btn.setText("GitHub")
-        github_btn.setIcon(get_icon("info.svg", 24, force_dark=True))
+        github_btn.setIcon(get_icon("github.svg", 24, force_dark=True))
         github_btn.setIconSize(QSize(24, 24))
         github_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         github_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         github_btn.setStyleSheet(main_window.styles["theme"] + "\nQToolButton { font-size:13px; padding:6px 12px; }")  # compact text under icon
-        github_btn.setProperty("icon_name", "info.svg")
+        github_btn.setProperty("icon_name", "github.svg")
         github_btn.setProperty("icon_force_dark", True)
-        github_btn.clicked.connect(lambda: os.startfile("https://github.com/AvenCores/Goida-AI-Unlocker"))
+        github_btn.clicked.connect(lambda: os.startfile("https://github.com/AvenCores"))
+
+        # Highlighted repository button
+        repo_btn = QToolButton()
+        repo_btn.setText("Репозиторий")
+        repo_btn.setIcon(get_icon("github.svg", 24, force_dark=True))
+        repo_btn.setIconSize(QSize(24, 24))
+        repo_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        repo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        repo_btn.setProperty("icon_name", "github.svg")
+        repo_btn.setProperty("icon_force_dark", True)
+        repo_btn.setStyleSheet(
+            main_window.styles["theme"] +
+            "\nQToolButton { font-size:13px; padding:6px 12px; background:qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e06c75, stop:1 #d64c58); color:white; border:1px solid #b94852; border-radius:8px; }\nQToolButton:pressed { background:#c94c57; }"
+        )
+        repo_btn.clicked.connect(lambda: os.startfile("https://github.com/AvenCores/Goida-AI-Unlocker"))
         # Grid for buttons in multiple rows
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(8)
         grid.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
-        # Put GitHub first
+        # Put GitHub profile first
         grid.addWidget(github_btn, 0, 0, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         social_buttons = [
@@ -1511,7 +1526,7 @@ netsh winsock reset
             ("Dzen", "https://dzen.ru/avencores", "book-open.svg"),
             ("VK", "https://vk.com/avencoresvk", "users.svg"),
         ]
-        about_buttons = [github_btn]
+        about_buttons = [github_btn, repo_btn]
         col_count = 3  # number of columns in the grid
         row = 0
         col = 1  # start after GitHub in (0,0)
@@ -1534,8 +1549,12 @@ netsh winsock reset
                 col = 0
 
         vbox.addLayout(grid)
-        # Match Donate's 24px gap (About vbox spacing is 8px → add 16px extra)
-        vbox.addSpacing(16)
+        # Separate repo button below the grid, above the menu button
+        repo_btn.setStyleSheet(main_window.styles["theme"] + "\nQToolButton { font-size:13px; padding:6px 12px; }")
+        vbox.addSpacing(8)
+        vbox.addWidget(repo_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
+        # Match Donate's 24px gap (About vbox spacing is 8px → add remaining extra)
+        vbox.addSpacing(8)
 
         # Defer width equalization until styles are applied
         def _equalize_about_button_widths():
