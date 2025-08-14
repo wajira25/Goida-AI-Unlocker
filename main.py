@@ -905,8 +905,6 @@ netsh winsock reset
                 text = child.text().lower()
                 if any(keyword in text for keyword in ["донат", "о программе", "github", "вернуться", "меню", "telegram", "youtube", "rutube", "дзен", "dzen", "vk"]):
                     child.setStyleSheet(main_window.styles["theme"])
-                    # --- NEW: refresh icons tint ---
-                    refresh_icons()
                 elif "копировать" in text or "окей" in text:
                     child.setStyleSheet(main_window.styles["button1"])
                 elif "удалить" in text:
@@ -924,6 +922,9 @@ netsh winsock reset
                     child.setText(main_window.styles["about_link_html"])
                 elif obj_name == "message_emoji": continue
                 else: child.setStyleSheet(main_window.styles["label"])
+
+            # Re-tint icons for this subwindow once after styles are updated
+            refresh_icons(w)
 
     def show_message_and_return(msg, success=True, animate=True):
         message_widget = QWidget()
@@ -1130,6 +1131,11 @@ netsh winsock reset
     # --- Функция проверки обновлений ---
     def check_for_updates():
         import json as _json  # локальный импорт, чтобы не конфликтовать
+        # Prevent parallel runs
+        if getattr(check_for_updates, "_running", False):
+            return
+        setattr(check_for_updates, "_running", True)
+
         def worker():
             try:
                 # Используем resource_path, чтобы корректно находить файл как при разработке, так и внутри собранного exe
@@ -1154,6 +1160,8 @@ netsh winsock reset
             except Exception as e:
                 err = f"Не удалось проверить обновления.\n{e}"
                 QTimer.singleShot(0, main_window, lambda m=err: show_message_and_return(m, success=False, animate=True))
+            finally:
+                setattr(check_for_updates, "_running", False)
         threading.Thread(target=worker, daemon=True).start()
     # --------------------------------------------------------------
 
@@ -1593,6 +1601,13 @@ netsh winsock reset
     # ----------------------- NEW: async updater -----------------------
     def update_version_label():
         """Refresh version_label text and adapt the install button caption depending on hosts version."""
+        now_ts = _time.time()
+        last_run = getattr(update_version_label, "_last_run", 0.0)
+        if getattr(update_version_label, "_running", False) or (now_ts - last_run) < 1.0:
+            return
+        setattr(update_version_label, "_running", True)
+        setattr(update_version_label, "_last_run", now_ts)
+
         def worker():
             word, clr = get_hosts_version_status()
             def apply():
@@ -1604,6 +1619,7 @@ netsh winsock reset
                 else:
                     button.setText(" Установить обход блокировок")
             QTimer.singleShot(0, main_window, apply)
+            setattr(update_version_label, "_running", False)
         threading.Thread(target=worker, daemon=True).start()
     # -----------------------------------------------------------------
 
